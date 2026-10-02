@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, Workspace } from "./api";
 
-const links = [["/", "▥", "Overview"], ["/leads", "♧", "Leads"], ["/customers", "♙", "Customers"], ["/deals", "◈", "Deals"], ["/tasks", "☑", "Tasks"], ["/campaigns", "➤", "Campaigns"], ["/content", "▦", "Content Calendar"], ["/landing-pages", "⌑", "Landing Pages"], ["/automations", "⚙", "Automations"], ["/team", "♟", "Team"]];
+const links = [["/", "▥", "Overview"], ["/leads", "♧", "Leads"], ["/customers", "♙", "Customers"], ["/deals", "◈", "Deals"], ["/tasks", "☑", "Tasks"], ["/campaigns", "➤", "Campaigns"], ["/content", "▦", "Content Calendar"], ["/landing-pages", "⌑", "Landing Pages"], ["/automations", "⚙", "Automations"], ["/reports", "▤", "Reports"], ["/team", "♟", "Team"]];
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const path = usePathname(); const router = useRouter();

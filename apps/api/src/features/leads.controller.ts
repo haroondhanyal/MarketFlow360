@@ -4,6 +4,7 @@ import { AuthGuard, SignedRequest, WorkspaceGuard } from "../auth";
 import { PrismaService } from "../prisma.service";
 import { scoped } from "../crm-common";
 import { LeadDto, UpdateLeadDto, ConvertLeadDto, BulkLeadImportDto, BulkLeadStatusDto } from "../crm-dto";
+import { runNewLeadAutomations } from "./lead-automation";
 
 @Controller("leads") @UseGuards(AuthGuard, WorkspaceGuard)
 export class LeadsController {
@@ -23,14 +24,21 @@ export class LeadsController {
       const duplicate = email ? await this.db.lead.findFirst({ where: { ...scoped(req), archivedAt: null, email } }) : null;
       if (duplicate) { skipped++; continue; }
       if (item.assignedToId && !await this.db.membership.findUnique({ where: { userId_workspaceId: { userId: item.assignedToId, workspaceId: req.workspaceId! } } })) throw new BadRequestException("An imported lead assignee is not a member of this workspace.");
-      created.push(await this.db.lead.create({ data: { ...item, ...scoped(req), email } }));
+      const lead = await this.db.lead.create({ data: { ...item, ...scoped(req), email } });
+      await this.db.leadActivity.create({ data: { ...scoped(req), leadId: lead.id, userId: req.authUser!.id, type: "CREATED", message: "Lead imported from CSV" } });
+      await runNewLeadAutomations(this.db, req.workspaceId!, lead, req.authUser!.id);
+      created.push(lead);
     }
     return { imported: created.length, skipped, leads: created };
   }
   @Patch("bulk/status") async bulkStatus(@Body() dto: BulkLeadStatusDto, @Req() req: SignedRequest) {
     if (dto.ids.length > 500) throw new BadRequestException("Update up to 500 leads per batch.");
-    const result = await this.db.lead.updateMany({ where: { ...scoped(req), id: { in: dto.ids }, archivedAt: null }, data: { status: dto.status } });
-    return { updated: result.count };
+    const leads = await this.db.lead.findMany({ where: { ...scoped(req), id: { in: dto.ids }, archivedAt: null }, select: { id: true, status: true } });
+    await this.db.$transaction(leads.flatMap(lead => [
+      this.db.lead.update({ where: { id: lead.id }, data: { status: dto.status } }),
+      ...(lead.status !== dto.status ? [this.db.leadActivity.create({ data: { ...scoped(req), leadId: lead.id, userId: req.authUser!.id, type: "STAGE_CHANGED", message: `Stage changed from ${lead.status} to ${dto.status} in a bulk update` } })] : []),
+    ]));
+    return { updated: leads.length };
   }
   @Post() async create(@Body() dto: LeadDto, @Req() req: SignedRequest) {
     await this.checkAssignee(dto.assignedToId, req);
@@ -40,12 +48,7 @@ export class LeadsController {
     if (duplicate) throw new ConflictException({ message: "Possible duplicate lead. Review the existing record before adding another.", existingLeadId: duplicate.id, existingLeadName: duplicate.name });
     const lead = await this.db.lead.create({ data: { ...dto, ...scoped(req), email, phone } });
     await this.db.leadActivity.create({ data: { ...scoped(req), leadId: lead.id, userId: req.authUser!.id, type: "CREATED", message: "Lead created" } });
-    const automations = await this.db.automation.findMany({ where: { ...scoped(req), trigger: "NEW_LEAD", isActive: true } });
-    for (const automation of automations) {
-      let result = "No action applied.";
-      if (automation.action === "CREATE_TASK") { await this.db.task.create({ data: { ...scoped(req), leadId: lead.id, title: automation.actionValue || "Follow up with new lead", description: "Created by automation" } }); result = "Follow-up task created."; }
-      await this.db.automationRun.create({ data: { automationId: automation.id, recordId: lead.id, result } });
-    }
+    await runNewLeadAutomations(this.db, req.workspaceId!, lead, req.authUser!.id);
     return lead;
   }
   @Patch(":id") async update(@Param("id") id: string, @Body() dto: UpdateLeadDto, @Req() req: SignedRequest) {

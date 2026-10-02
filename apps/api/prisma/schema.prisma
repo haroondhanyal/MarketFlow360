@@ -66,6 +66,7 @@ model User {
   memberships         Membership[]
   activities          LeadActivity[]
   assignedLeads       Lead[]               @relation("LeadOwner")
+  assignedTasks       Task[]               @relation("TaskOwner")
   comments            TaskComment[]
   invitesSent         Invitation[]         @relation("WorkspaceInviter")
   authChallenges      AuthChallenge[]
@@ -114,6 +115,9 @@ model Workspace {
   contentItems   ContentItem[]
   landingPages   LandingPage[]
   automations    Automation[]
+  pipelineStages PipelineStage[]
+  attachments    Attachment[]
+  taskReminders  TaskReminder[]
   invitations    Invitation[]
   clientGrants   AgencyClientAccess[] @relation("AgencyWorkspace")
   agencyGrants   AgencyClientAccess[] @relation("ClientWorkspace")
@@ -215,6 +219,18 @@ model AutomationRun {
   automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 
   @@index([automationId, createdAt])
+}
+
+model PipelineStage {
+  id          String     @id @default(cuid())
+  workspaceId String
+  key         LeadStatus
+  label       String
+  position    Int
+  workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, position])
 }
 
 model Membership {
@@ -338,23 +354,57 @@ model Deal {
 }
 
 model Task {
-  id          String        @id @default(cuid())
-  workspaceId String
-  leadId      String?
-  customerId  String?
-  title       String
-  description String?
-  status      TaskStatus    @default(OPEN)
-  priority    TaskPriority  @default(MEDIUM)
-  dueAt       DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  comments    TaskComment[]
+  id           String        @id @default(cuid())
+  workspaceId  String
+  leadId       String?
+  customerId   String?
+  title        String
+  description  String?
+  status       TaskStatus    @default(OPEN)
+  priority     TaskPriority  @default(MEDIUM)
+  dueAt        DateTime?
+  assignedToId String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead         Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  comments     TaskComment[]
+  assignedTo   User?         @relation("TaskOwner", fields: [assignedToId], references: [id], onDelete: SetNull)
+  reminder     TaskReminder?
 
   @@index([workspaceId, status, dueAt])
+  @@index([assignedToId])
+}
+
+model TaskReminder {
+  id          String    @id @default(cuid())
+  workspaceId String
+  taskId      String    @unique
+  remindAt    DateTime
+  sentAt      DateTime?
+  claimedAt   DateTime?
+  lastError   String?
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([sentAt, remindAt])
+}
+
+model Attachment {
+  id          String    @id @default(cuid())
+  workspaceId String
+  recordType  String
+  recordId    String
+  fileName    String
+  mimeType    String
+  sizeBytes   Int
+  content     Bytes
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, recordType, recordId, createdAt])
 }
 
 model TaskComment {

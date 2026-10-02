@@ -5,6 +5,7 @@ import { PartialType } from "@nestjs/mapped-types";
 import { AuthGuard, SignedRequest, WorkspaceGuard } from "../auth";
 import { scoped } from "../crm-common";
 import { PrismaService } from "../prisma.service";
+import { runNewLeadAutomations } from "./lead-automation";
 
 class CampaignDto {
   @IsString() @MinLength(2) name!: string;
@@ -98,7 +99,7 @@ export class AutomationsController {
   @Post(":id/run") async run(@Param("id") id: string, @Req() req: SignedRequest) { const automation = await this.find(id, req); if (!automation.isActive) throw new NotFoundException("Enable this automation before running it."); const lead = await this.db.lead.findFirst({ where: { ...scoped(req), archivedAt: null }, orderBy: { createdAt: "desc" } }); return this.execute(automation, lead?.id ?? null, req); }
   async execute(automation: { id: string; action: string; actionValue: string | null }, leadId: string | null, req: SignedRequest) {
     let result = "No action applied.";
-    if (automation.action === "CREATE_TASK") { await this.db.task.create({ data: { ...scoped(req), leadId, title: automation.actionValue || "Follow up with new lead", description: "Created by automation" } }); result = "Follow-up task created."; }
+    if (automation.action === "CREATE_TASK") { await this.db.task.create({ data: { ...scoped(req), leadId, assignedToId: req.authUser!.id, title: automation.actionValue || "Follow up with new lead", description: "Created by automation", dueAt: new Date(Date.now() + 24 * 60 * 60_000) } }); result = "Follow-up task created."; }
     else if (automation.action === "UPDATE_LEAD_STATUS" && leadId && automation.actionValue && Object.values(LeadStatus).includes(automation.actionValue as LeadStatus)) { await this.db.lead.updateMany({ where: { id: leadId, ...scoped(req) }, data: { status: automation.actionValue as LeadStatus } }); result = `Lead moved to ${automation.actionValue}.`; }
     return this.db.automationRun.create({ data: { automationId: automation.id, recordId: leadId, result } });
   }
@@ -118,12 +119,7 @@ export class PublicLandingController {
     const page = await this.db.landingPage.findFirst({ where: { slug, isPublished: true } });
     if (!page) throw new NotFoundException("This landing page is not published.");
     const lead = await this.db.lead.create({ data: { workspaceId: page.workspaceId, name: dto.name.trim(), email: dto.email?.trim().toLowerCase(), phone: dto.phone?.trim(), source: "WEBSITE", interest: page.interest ?? page.title, activities: { create: { workspaceId: page.workspaceId, type: "CAPTURED", message: `Captured from landing page: ${page.title}` } } } });
-    const workflows = await this.db.automation.findMany({ where: { workspaceId: page.workspaceId, trigger: "NEW_LEAD", isActive: true } });
-    for (const workflow of workflows) {
-      let result = "No action applied.";
-      if (workflow.action === "CREATE_TASK") { await this.db.task.create({ data: { workspaceId: page.workspaceId, leadId: lead.id, title: workflow.actionValue || "Follow up with new lead", description: "Created by automation" } }); result = "Follow-up task created."; }
-      await this.db.automationRun.create({ data: { automationId: workflow.id, recordId: lead.id, result } });
-    }
+    await runNewLeadAutomations(this.db, page.workspaceId, lead);
     return { ok: true, message: "Thanks. Your enquiry has been sent." };
   }
 }

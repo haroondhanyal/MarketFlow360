@@ -24,8 +24,9 @@ The scope is delivered in small, reviewable slices for a seven-developer team. P
 - Registration, email verification, login/logout, password reset, hashed revocable sessions, workspace creation/switching, roles, invitations, agency-client grants and server-side workspace checks.
 - Optional Resend delivery for verification, reset and invitation email (`RESEND_API_KEY`, `EMAIL_FROM`). Without credentials the API keeps the local demo-link behavior. Sign-in failures are throttled per email/IP in process memory.
 - PostgreSQL/Prisma migrations, demo seed data, validated REST APIs and tenant-scoped CRUD for leads, customers, deals and tasks.
-- Lead board/table, stages, activity, archive, duplicate warning, follow-ups, conversion, workspace-member ownership, CSV export, and CSV import (500 rows per request, duplicate email rows skipped).
-- Customers, deals, task dates/status/priority/comments, a monthly task calendar, overview counts and role-based team screens.
+- Lead board/table, editable names/order for the six standard pipeline stages, activity, archive, duplicate warning, follow-ups, conversion, workspace-member ownership, CSV export/import, and multi-select stage updates (500-row request limit, duplicate email rows skipped).
+- Customers, deals, task dates/status/priority/comments, a monthly task calendar, 30-minute-before due reminders, overview counts and role-based team screens.
+- Upload/download/delete attachments on lead, customer and task records. Files up to 3 MB are stored in PostgreSQL and downloaded as attachments after signature checks for common file types.
 
 ## Delivered in phases 5–8
 
@@ -33,15 +34,17 @@ The scope is delivered in small, reviewable slices for a seven-developer team. P
 - **Phase 6:** content drafts, channel, schedule date, optional campaign link, and review/publish status tracking.
 - **Phase 7:** workspace landing page drafts and publishing, a public enquiry form, and capture directly into the owning workspace's lead list.
 - **Phase 8:** new-lead trigger with create-follow-up-task or update-lead-stage action, manual run, and stored run history. New lead records created in the CRM or by a published landing page execute enabled workflows.
+- **Workspace reports:** current totals by lead stage/source, deal stage/value, task state, campaign plan and content state, with CSV export.
 
 ## Remaining gaps before a production launch
 
-- Lead pipeline stage names/order remain fixed; CSV bulk status endpoint exists but there is no multi-select bulk action UI. File uploads/attachments have not been built.
-- Reminder dates appear in task and overview screens, but a durable scheduled reminder worker and delivery/retry policy are not configured. Sign-in throttling is in-memory and must move to shared storage such as Redis before horizontal scaling.
+- Pipeline labels and order can be edited, while stage keys remain the six standard stages; creating/removing arbitrary stages is not supported.
+- Attachments are stored in PostgreSQL, limited to 3 MB, and lack virus scanning and external object storage. Deployments with large files should use a private object-storage provider.
+- Task reminders are persisted and polled by an API worker; they require Resend credentials to send. They retry failed delivery every five minutes. Run one API instance for reminder processing or move the worker/lease to a dedicated job service before horizontal scaling. Sign-in throttling is in-memory and must move to shared storage such as Redis before scaling multiple API instances.
 - Campaigns do not publish to ad/social channels or ingest spend, impressions or conversions. Content status changes are internal workflow only; publishing and media storage require Phase 9 provider adapters.
 - Landing pages have a simple fixed form layout and do not yet provide a drag-and-drop page builder, configurable fields, custom domains or consent/legal templates.
 - Automations execute synchronously on lead creation. There is no general event bus, delayed action, branching, retry/dead-letter queue or workflow versioning.
-- Broad report exports, attachment scanning/storage, full production email operations, billing, AI, automated application tests/CI, and production deployment and observability are still planned.
+- Reports currently show all-time totals with CSV export; date filters, charts, scheduled reports and broad drill-downs remain planned. Automated application tests/CI, billing, AI, and production deployment/observability are also still planned.
 
 ## Effort estimate
 
@@ -51,5 +54,5 @@ The original full production-minded estimate remains **110–170 person-days** a
 
 - API TypeScript check and Nest production build passed.
 - Web TypeScript check and Next production build passed.
-- A prior checkout verified Prisma migrations/seed and core CRM/auth flows against a temporary local PostgreSQL database. The new phase 5–8 migration has not yet been applied to a database in this turn.
-- Docker Compose and third-party provider delivery were not verified here. No automated test suite or CI workflow is present.
+- A prior checkout verified the original Prisma migrations/seed and core CRM/auth flows against a temporary local PostgreSQL database. The Phase 5–8 and workspace-tools migrations validate against the Prisma schema but have not been applied to a database in this turn.
+- PostgreSQL was not listening locally, so Compose/database migration and third-party provider delivery were not verified here. No automated test suite or CI workflow is present.

@@ -34,17 +34,19 @@ The supplied MarketFlow360 screenshots guide the visual style: a dark navy navig
 - Business and agency workspace types. Agency users can switch into explicitly granted client workspaces; the sample Bright Digital Agency has a seeded grant to Urban Retail.
 - Separate Leads, Customers, Deals and Tasks screens with create, update, stage change and delete actions.
 - Lead board and table views, a default pipeline, a basic stage-transition check and a lead activity timeline API.
-- Lead assignment to workspace members, CSV import/export, and limited batch import/status endpoints.
+- Lead assignment, rename/reorder for the standard pipeline stages, CSV import/export and multi-select bulk stage changes.
 - Lead conversion creates a customer and deal in one database transaction.
-- Task follow-ups can be reviewed in list or monthly calendar view; due reminders themselves are not delivered by a background worker yet.
+- Task follow-ups can be reviewed in list/calendar views; persisted reminders are sent 30 minutes before due time when Resend is configured.
+- Lead, customer and task attachments support safe-download file handling and files up to 3 MB stored in PostgreSQL.
 - Related leads/customers are checked to belong to the same workspace before creating or editing deals and tasks.
 - Seeded Nexora Academy and Urban Retail demonstration workspaces.
 - Campaign management with planned budget, content calendar and approval statuses, hosted enquiry pages, and lead-triggered follow-up automations.
+- Workspace summaries and CSV reports for leads, deals, tasks, campaigns and content.
 - Optional Resend delivery for verification, reset and invite emails; demo links are returned when provider credentials are not configured.
 
 ## What is still planned
 
-Social/ad publishing and metrics, file uploads, flexible pipeline configuration, task reminder jobs, broad reporting, provider integrations, billing and AI assistance remain future work. Content statuses are internal tracking; they do not publish to social platforms. Campaign budget is a planned amount, not actual channel spend. See [the phase checklist](docs/PHASES.md) for precise scope and remaining work.
+Social/ad publishing and actual spend metrics, arbitrary pipeline stages, large-file object storage/scanning, date-filtered reports, workflow branches/delays, broad provider integrations, billing, AI and production release automation remain future work. Content statuses track the internal review flow; they do not publish to social platforms. Campaign budget is planned, not actual channel spend. See [the phase checklist](docs/PHASES.md) for exact scope and remaining work.
 
 ## Run locally
 
@@ -62,7 +64,7 @@ corepack pnpm dev
 
 Open the web app at <http://localhost:3000>. API health is at <http://localhost:4000/api/v1/health>. The web app expects the API at `http://localhost:4000/api/v1`; override with `NEXT_PUBLIC_API_URL` when needed. API settings are in `apps/api/.env.example`.
 
-Set `RESEND_API_KEY` and `EMAIL_FROM` in `apps/api/.env` to send account verification, password reset and workspace invitation emails through Resend. Without these values, the API returns local demo links.
+Set `RESEND_API_KEY` and `EMAIL_FROM` in `apps/api/.env` to send account verification, password reset, workspace invitations and task reminders through Resend. Without these values, auth endpoints return local demo links and scheduled reminders wait without sending. Task reminders are stored in PostgreSQL and polled by the API; use one API instance until the worker is moved to shared job infrastructure. Uploaded record attachments are stored in PostgreSQL, max 3 MB per file.
 
 ### Demo sign-in
 

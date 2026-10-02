@@ -13,7 +13,7 @@ Browser
               └── Prisma → PostgreSQL
 ```
 
-Redis is provisioned but not yet used by the application. Automations currently run synchronously inside the API request that creates a lead.
+Redis is provisioned but not yet used by the application. Automations run synchronously inside the API request that creates a lead. Task reminders are persisted in PostgreSQL and polled by one API worker.
 
 ## Multi-tenancy and access
 
@@ -22,6 +22,7 @@ Redis is provisioned but not yet used by the application. Automations currently 
 - Agency-to-client access is explicit in `AgencyClientAccess`. Agency and client workspace owners/admins authorize the grant. Users can see a granted client only if they are also a member of that agency. A read-only agency role stays read-only when switching into a client workspace.
 - A deal’s linked lead/customer and a task’s linked lead/customer are checked against the same workspace.
 - The UI hides team management for read-only and granted-client users; backend checks remain authoritative.
+- Pipeline labels/order are stored per workspace while six stable stage keys remain. File attachments are checked against the target workspace record before storage/download.
 
 ## Sessions and demo delivery
 
@@ -36,9 +37,11 @@ Redis is provisioned but not yet used by the application. Automations currently 
 - Money uses integer minor units plus an explicit currency code. Campaign budgets are planned amounts; external spend/conversion metrics are unavailable until integrations exist.
 - PostgreSQL schema/migrations and seed fixtures live under `apps/api/prisma`.
 - DTOs use `class-validator`; a global `ValidationPipe` transforms input, strips unknown fields and rejects non-whitelisted properties.
-- REST routes are prefixed `/api/v1`; the API covers authentication, workspaces, leads, customers, deals, tasks, campaigns, content, landing pages, automations and a database-derived overview.
+- REST routes are prefixed `/api/v1`; the API covers authentication, workspaces, leads, customers, deals, tasks, pipeline configuration, attachments, campaigns, content, landing pages, automations, reports and a database-derived overview.
+- Attachments (PDF, PNG, JPEG, WebP, text and CSV) are limited to 3 MB and stored as PostgreSQL `BYTEA`; downloads use forced attachment disposition and MIME signature checks. There is no malware scanner. Configure private object storage for larger or production file volumes.
+- A due task reminder is scheduled for 30 minutes before its due date. The database-backed worker claims due reminders, emails the task owner (or workspace owner) through Resend, and retries failures. It does not send without `RESEND_API_KEY`; use one API instance until reminders move to a dedicated queue/worker deployment.
 - Public landing forms create workspace-scoped website leads. They do not yet have configurable consent fields, CAPTCHA/rate limits or custom-domain support.
-- Campaign/content state is internal; social publishing, media storage, durable reminder jobs and delayed/branched automation execution require later adapters/workers.
+- Campaign/content state is internal; social publishing, external ad metrics, configurable landing-page form blocks and delayed/branched automation execution require later adapters/workers.
 
 ## Environment
 

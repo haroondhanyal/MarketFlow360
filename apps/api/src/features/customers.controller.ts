@@ -15,6 +15,6 @@ export class CustomersController {
   }
   @Post() create(@Body() dto: CustomerDto, @Req() req: SignedRequest) { return this.db.customer.create({ data: { ...dto, ...scoped(req), email: dto.email?.toLowerCase() } }); }
   @Patch(":id") async update(@Param("id") id: string, @Body() dto: UpdateCustomerDto, @Req() req: SignedRequest) { await this.find(id, req); return this.db.customer.update({ where: { id }, data: dto }); }
-  @Delete(":id") async remove(@Param("id") id: string, @Req() req: SignedRequest) { await this.find(id, req); await this.db.customer.delete({ where: { id } }); return { ok: true }; }
+  @Delete(":id") async remove(@Param("id") id: string, @Req() req: SignedRequest) { await this.find(id, req); await this.db.$transaction([this.db.attachment.deleteMany({ where: { ...scoped(req), recordType: "CUSTOMER", recordId: id } }), this.db.customer.delete({ where: { id } })]); return { ok: true }; }
   private async find(id: string, req: SignedRequest) { const row = await this.db.customer.findFirst({ where: { id, ...scoped(req) } }); if (!row) throw new NotFoundException("Customer not found."); return row; }
 }

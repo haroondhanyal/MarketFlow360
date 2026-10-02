@@ -37,6 +37,7 @@ export class TaskDto {
   @IsOptional() @IsString() leadId?: string;
   @IsOptional() @IsString() customerId?: string;
   @IsOptional() @IsDateString() dueAt?: string;
+  @IsOptional() @IsString() assignedToId?: string;
 }
 export class UpdateLeadDto extends PartialType(LeadDto) {}
 export class UpdateCustomerDto extends PartialType(CustomerDto) {}
