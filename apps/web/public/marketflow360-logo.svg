@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="120" viewBox="0 0 620 120" fill="none">
+  <defs><linearGradient id="g" x1="14" y1="15" x2="103" y2="105" gradientUnits="userSpaceOnUse"><stop stop-color="#4E8EFF"/><stop offset="1" stop-color="#7541F2"/></linearGradient></defs>
+  <circle cx="60" cy="60" r="45" stroke="url(#g)" stroke-width="16" stroke-dasharray="206 77" transform="rotate(-45 60 60)"/>
+  <path d="M44 69V54M60 69V39M76 69V48" stroke="url(#g)" stroke-width="9" stroke-linecap="round"/>
+  <text x="126" y="78" fill="#10203E" font-family="Arial,Helvetica,sans-serif" font-size="55" font-weight="700">MarketFlow</text>
+  <text x="430" y="78" fill="#6638ED" font-family="Arial,Helvetica,sans-serif" font-size="55" font-weight="700">360</text>
+</svg>

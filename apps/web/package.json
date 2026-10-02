@@ -1,0 +1,8 @@
+{
+  "name": "@marketflow/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {"dev": "next dev", "build": "next build --webpack", "typecheck": "tsc --noEmit"},
+  "dependencies": {"next": "16.3.8", "react": "19.2.0", "react-dom": "19.2.0"},
+  "devDependencies": {"@types/node": "24.5.2", "@types/react": "19.2.2", "@types/react-dom": "19.2.2", "tailwindcss": "4.1.13", "@tailwindcss/postcss": "4.1.13", "typescript": "5.9.2"}
+}

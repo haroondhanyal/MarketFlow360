@@ -1,0 +1,7 @@
+"use client";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { api } from "../api";
+export default function ResetPasswordPage(){const [password,setPassword]=useState("");const [error,setError]=useState("");const [done,setDone]=useState(false);const router=useRouter();async function submit(e:FormEvent){e.preventDefault();setError("");const token=new URLSearchParams(location.search).get("token");if(!token){setError("The reset link is missing its token.");return;}try{await api("/auth/password-reset/confirm",{method:"POST",body:JSON.stringify({token,password})});setDone(true);setTimeout(()=>router.replace("/login"),900);}catch(e){setError(e instanceof Error?e.message:"Could not reset your password.");}}return <main className="auth-page"><form className="auth-card" onSubmit={submit}><Image src="/marketflow360-logo.svg" alt="MarketFlow360" width={270} height={58}/><h1>Choose a new password</h1>{error&&<div className="form-error">{error}</div>}{done?<p>Password changed. Taking you to sign in…</p>:<><label>New password<input type="password" minLength={10} autoComplete="new-password" value={password} onChange={e=>setPassword(e.target.value)} required/></label><button className="primary">Update password</button></>}<p className="auth-foot"><Link href="/login">Back to sign in</Link></p></form></main>;}

@@ -1,0 +1,7 @@
+"use client";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { api, Workspace } from "../api";
+export default function InvitePage(){const [message,setMessage]=useState("Checking invitation…");const [error,setError]=useState("");const [signIn,setSignIn]=useState(false);const router=useRouter();useEffect(()=>{const token=new URLSearchParams(location.search).get("token");if(!token){setError("This invitation link is missing its token.");return;}api("/auth/me").then(()=>api<Workspace>("/invitations/accept",{method:"POST",body:JSON.stringify({token})})).then(w=>{localStorage.setItem("mf_workspace",w.id);setMessage(`Invitation accepted. Joining ${w.name}…`);setTimeout(()=>router.replace("/"),600);}).catch(e=>{setError(e instanceof Error?e.message:"Could not accept this invitation.");setSignIn(true);});},[router]);const next=typeof window!=="undefined"?`/invite${location.search}`:"/invite";return <main className="auth-page"><section className="auth-card"><Image src="/marketflow360-logo.svg" alt="MarketFlow360" width={270} height={58}/><h1>Workspace invitation</h1>{error&&<div className="form-error">{error}</div>}{!error&&<p>{message}</p>}{signIn&&<p className="auth-foot"><Link href={`/login?next=${encodeURIComponent(next)}`}>Sign in</Link> with the invited email address, or <Link href={`/register?next=${encodeURIComponent(next)}`}>create an account</Link>, then open this invite link again after verification.</p>}</section></main>;}

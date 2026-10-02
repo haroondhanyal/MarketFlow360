@@ -1,0 +1,11 @@
+{
+  "name": "marketflow360",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "scripts": {
+    "dev": "corepack pnpm --parallel --filter @marketflow/web --filter @marketflow/api dev",
+    "build": "corepack pnpm -r build",
+    "typecheck": "corepack pnpm -r typecheck"
+  }
+}

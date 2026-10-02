@@ -1,0 +1,264 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceType {
+  BUSINESS
+  AGENCY
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MARKETING_MANAGER
+  SALES_AGENT
+  CONTENT_CREATOR
+  APPROVER
+  ANALYST
+  CLIENT_VIEWER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  INTERESTED
+  PROPOSAL_PENDING
+  WON
+  LOST
+}
+
+enum LeadSource {
+  WEBSITE
+  FACEBOOK
+  INSTAGRAM
+  REFERRAL
+  LINKEDIN
+  GOOGLE
+  WHATSAPP
+  OTHER
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  name                String
+  email               String               @unique
+  passwordHash        String
+  verifiedAt          DateTime?
+  createdAt           DateTime             @default(now())
+  sessions            Session[]
+  memberships         Membership[]
+  activities          LeadActivity[]
+  comments            TaskComment[]
+  invitesSent         Invitation[]         @relation("WorkspaceInviter")
+  authChallenges      AuthChallenge[]
+  agencyAccessGranted AgencyClientAccess[] @relation("AgencyAccessGrantor")
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model AuthChallenge {
+  id         String    @id @default(cuid())
+  userId     String
+  kind       String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, kind, expiresAt])
+}
+
+model Workspace {
+  id             String               @id @default(cuid())
+  name           String
+  type           WorkspaceType        @default(BUSINESS)
+  timezone       String               @default("Asia/Karachi")
+  currency       String               @default("PKR")
+  createdAt      DateTime             @default(now())
+  memberships    Membership[]
+  leads          Lead[]
+  leadActivities LeadActivity[]
+  customers      Customer[]
+  deals          Deal[]
+  tasks          Task[]
+  invitations    Invitation[]
+  clientGrants   AgencyClientAccess[] @relation("AgencyWorkspace")
+  agencyGrants   AgencyClientAccess[] @relation("ClientWorkspace")
+}
+
+model Membership {
+  id          String        @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        WorkspaceRole @default(SALES_AGENT)
+  createdAt   DateTime      @default(now())
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId, role])
+}
+
+model Invitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  invitedById String
+  email       String
+  role        WorkspaceRole
+  tokenHash   String        @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy   User          @relation("WorkspaceInviter", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, email, acceptedAt])
+}
+
+model AgencyClientAccess {
+  id                String        @id @default(cuid())
+  agencyWorkspaceId String
+  clientWorkspaceId String
+  grantedById       String
+  accessRole        WorkspaceRole @default(CLIENT_VIEWER)
+  createdAt         DateTime      @default(now())
+  agencyWorkspace   Workspace     @relation("AgencyWorkspace", fields: [agencyWorkspaceId], references: [id], onDelete: Cascade)
+  clientWorkspace   Workspace     @relation("ClientWorkspace", fields: [clientWorkspaceId], references: [id], onDelete: Cascade)
+  grantedBy         User          @relation("AgencyAccessGrantor", fields: [grantedById], references: [id], onDelete: Cascade)
+
+  @@unique([agencyWorkspaceId, clientWorkspaceId])
+  @@index([clientWorkspaceId])
+}
+
+model Lead {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  email       String?
+  phone       String?
+  interest    String?
+  source      LeadSource     @default(OTHER)
+  status      LeadStatus     @default(NEW)
+  notes       String?
+  archivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+  deals       Deal[]
+  activities  LeadActivity[]
+
+  @@index([workspaceId, status, createdAt])
+  @@index([workspaceId, email])
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  company     String?
+  email       String?
+  phone       String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deals       Deal[]
+  tasks       Task[]
+
+  @@index([workspaceId, name])
+}
+
+model LeadActivity {
+  id          String    @id @default(cuid())
+  workspaceId String
+  leadId      String
+  userId      String?
+  type        String
+  message     String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, leadId, createdAt])
+}
+
+model Deal {
+  id          String    @id @default(cuid())
+  workspaceId String
+  leadId      String?
+  customerId  String?
+  title       String
+  amountMinor Int       @default(0)
+  currency    String    @default("PKR")
+  stage       String    @default("OPEN")
+  expectedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer    Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, stage, createdAt])
+}
+
+model Task {
+  id          String        @id @default(cuid())
+  workspaceId String
+  leadId      String?
+  customerId  String?
+  title       String
+  description String?
+  status      TaskStatus    @default(OPEN)
+  priority    TaskPriority  @default(MEDIUM)
+  dueAt       DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer    Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  comments    TaskComment[]
+
+  @@index([workspaceId, status, dueAt])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  body      String
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+}
