@@ -34,13 +34,17 @@ The supplied MarketFlow360 screenshots guide the visual style: a dark navy navig
 - Business and agency workspace types. Agency users can switch into explicitly granted client workspaces; the sample Bright Digital Agency has a seeded grant to Urban Retail.
 - Separate Leads, Customers, Deals and Tasks screens with create, update, stage change and delete actions.
 - Lead board and table views, a default pipeline, a basic stage-transition check and a lead activity timeline API.
+- Lead assignment to workspace members, CSV import/export, and limited batch import/status endpoints.
 - Lead conversion creates a customer and deal in one database transaction.
+- Task follow-ups can be reviewed in list or monthly calendar view; due reminders themselves are not delivered by a background worker yet.
 - Related leads/customers are checked to belong to the same workspace before creating or editing deals and tasks.
 - Seeded Nexora Academy and Urban Retail demonstration workspaces.
+- Campaign management with planned budget, content calendar and approval statuses, hosted enquiry pages, and lead-triggered follow-up automations.
+- Optional Resend delivery for verification, reset and invite emails; demo links are returned when provider credentials are not configured.
 
 ## What is still planned
 
-Campaign management, real email delivery, customer history beyond related deals/tasks, lead assignment, imports/exports, file storage, content approvals, landing pages, automations, provider integrations, billing, AI assistance and the expanded reporting/security suite remain future work. The dashboard labels campaign cost metrics as unavailable until campaign data exists. Demo mode does not claim an email, campaign, post or payment was sent.
+Social/ad publishing and metrics, file uploads, flexible pipeline configuration, task reminder jobs, broad reporting, provider integrations, billing and AI assistance remain future work. Content statuses are internal tracking; they do not publish to social platforms. Campaign budget is a planned amount, not actual channel spend. See [the phase checklist](docs/PHASES.md) for precise scope and remaining work.
 
 ## Run locally
 
@@ -57,6 +61,8 @@ corepack pnpm dev
 ```
 
 Open the web app at <http://localhost:3000>. API health is at <http://localhost:4000/api/v1/health>. The web app expects the API at `http://localhost:4000/api/v1`; override with `NEXT_PUBLIC_API_URL` when needed. API settings are in `apps/api/.env.example`.
+
+Set `RESEND_API_KEY` and `EMAIL_FROM` in `apps/api/.env` to send account verification, password reset and workspace invitation emails through Resend. Without these values, the API returns local demo links.
 
 ### Demo sign-in
 

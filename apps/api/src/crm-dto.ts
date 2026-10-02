@@ -1,6 +1,7 @@
-import { IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min, MinLength } from "class-validator";
+import { IsArray, IsDateString, IsEmail, IsEnum, IsInt, IsOptional, IsString, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import { PartialType } from "@nestjs/mapped-types";
 import { LeadSource, LeadStatus, TaskPriority, TaskStatus } from "@prisma/client";
+import { Type } from "class-transformer";
 
 export class LeadDto {
   @IsString() @MinLength(2) name!: string;
@@ -10,6 +11,7 @@ export class LeadDto {
   @IsOptional() @IsEnum(LeadSource) source?: LeadSource;
   @IsOptional() @IsEnum(LeadStatus) status?: LeadStatus;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsString() assignedToId?: string;
 }
 export class CustomerDto {
   @IsString() @MinLength(2) name!: string;
@@ -45,4 +47,11 @@ export class ConvertLeadDto {
   @IsOptional() @IsString() customerName?: string;
   @IsOptional() @IsString() dealTitle?: string;
   @IsOptional() @IsInt() @Min(0) dealAmountMinor?: number;
+}
+export class BulkLeadImportDto {
+  @IsArray() @ValidateNested({ each: true }) @Type(() => LeadDto) leads!: LeadDto[];
+}
+export class BulkLeadStatusDto {
+  @IsArray() @IsString({ each: true }) ids!: string[];
+  @IsEnum(LeadStatus) status!: LeadStatus;
 }

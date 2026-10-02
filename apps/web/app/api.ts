@@ -20,3 +20,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
+
+export async function downloadApiFile(path: string, filename: string) {
+  const headers = new Headers();
+  const workspaceId = activeWorkspaceId();
+  if (workspaceId) headers.set("x-workspace-id", workspaceId);
+  const response = await fetch(`${API_URL}${path}`, { headers, credentials: "include" });
+  if (!response.ok) throw new Error("Could not download this file.");
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a"); link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
+}

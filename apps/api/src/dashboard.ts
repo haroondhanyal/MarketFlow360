@@ -8,15 +8,17 @@ export class DashboardController {
   constructor(private db: PrismaService) {}
   @Get("overview") async overview(@Req() req: SignedRequest) {
     const workspaceId = req.workspaceId!;
-    const [totalLeads, wonDeals, openTasks, stages, sources, recentLeads, upcomingTasks] = await Promise.all([
+    const [totalLeads, wonDeals, openTasks, activeCampaigns, campaignBudget, stages, sources, recentLeads, upcomingTasks] = await Promise.all([
       this.db.lead.count({ where: { workspaceId, archivedAt: null } }),
       this.db.deal.count({ where: { workspaceId, stage: "WON" } }),
       this.db.task.count({ where: { workspaceId, status: { not: "DONE" } } }),
+      this.db.campaign.count({ where: { workspaceId, status: "ACTIVE" } }),
+      this.db.campaign.aggregate({ where: { workspaceId }, _sum: { budgetMinor: true } }),
       this.db.lead.groupBy({ by: ["status"], where: { workspaceId, archivedAt: null }, _count: { _all: true } }),
       this.db.lead.groupBy({ by: ["source"], where: { workspaceId, archivedAt: null }, _count: { _all: true } }),
       this.db.lead.findMany({ where: { workspaceId, archivedAt: null }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, name: true, interest: true, status: true, createdAt: true } }),
       this.db.task.findMany({ where: { workspaceId, status: { not: "DONE" } }, orderBy: { dueAt: "asc" }, take: 5, select: { id: true, title: true, dueAt: true, lead: { select: { name: true } }, customer: { select: { name: true } } } }),
     ]);
-    return { metrics: { totalLeads, wonDeals, openTasks }, stages: stages.map(x => ({ status: x.status, count: x._count._all })), sources: sources.map(x => ({ source: x.source, count: x._count._all })), recentLeads, upcomingTasks };
+    return { metrics: { totalLeads, wonDeals, openTasks, activeCampaigns, plannedCampaignBudgetMinor: campaignBudget._sum.budgetMinor ?? 0 }, stages: stages.map(x => ({ status: x.status, count: x._count._all })), sources: sources.map(x => ({ source: x.source, count: x._count._all })), recentLeads, upcomingTasks };
   }
 }

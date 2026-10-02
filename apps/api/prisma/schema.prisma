@@ -65,6 +65,7 @@ model User {
   sessions            Session[]
   memberships         Membership[]
   activities          LeadActivity[]
+  assignedLeads       Lead[]               @relation("LeadOwner")
   comments            TaskComment[]
   invitesSent         Invitation[]         @relation("WorkspaceInviter")
   authChallenges      AuthChallenge[]
@@ -109,9 +110,111 @@ model Workspace {
   customers      Customer[]
   deals          Deal[]
   tasks          Task[]
+  campaigns      Campaign[]
+  contentItems   ContentItem[]
+  landingPages   LandingPage[]
+  automations    Automation[]
   invitations    Invitation[]
   clientGrants   AgencyClientAccess[] @relation("AgencyWorkspace")
   agencyGrants   AgencyClientAccess[] @relation("ClientWorkspace")
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  REJECTED
+}
+
+model Campaign {
+  id          String         @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  channel     String         @default("OTHER")
+  status      CampaignStatus @default(DRAFT)
+  budgetMinor Int            @default(0)
+  currency    String         @default("PKR")
+  startsAt    DateTime?
+  endsAt      DateTime?
+  goal        String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  content     ContentItem[]
+
+  @@index([workspaceId, status, startsAt])
+}
+
+model ContentItem {
+  id          String        @id @default(cuid())
+  workspaceId String
+  campaignId  String?
+  title       String
+  body        String        @default("")
+  channel     String        @default("OTHER")
+  status      ContentStatus @default(DRAFT)
+  publishAt   DateTime?
+  mediaUrl    String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaign    Campaign?     @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, status, publishAt])
+}
+
+model LandingPage {
+  id          String    @id @default(cuid())
+  workspaceId String
+  slug        String    @unique
+  title       String
+  headline    String
+  description String    @default("")
+  buttonText  String    @default("Send")
+  interest    String?
+  isPublished Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([isPublished, slug])
+}
+
+model Automation {
+  id          String          @id @default(cuid())
+  workspaceId String
+  name        String
+  trigger     String
+  action      String
+  actionValue String?
+  isActive    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  runs        AutomationRun[]
+
+  @@index([workspaceId, trigger, isActive])
+}
+
+model AutomationRun {
+  id           String     @id @default(cuid())
+  automationId String
+  recordId     String?
+  result       String
+  createdAt    DateTime   @default(now())
+  automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
+
+  @@index([automationId, createdAt])
 }
 
 model Membership {
@@ -159,25 +262,28 @@ model AgencyClientAccess {
 }
 
 model Lead {
-  id          String         @id @default(cuid())
-  workspaceId String
-  name        String
-  email       String?
-  phone       String?
-  interest    String?
-  source      LeadSource     @default(OTHER)
-  status      LeadStatus     @default(NEW)
-  notes       String?
-  archivedAt  DateTime?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  tasks       Task[]
-  deals       Deal[]
-  activities  LeadActivity[]
+  id           String         @id @default(cuid())
+  workspaceId  String
+  name         String
+  email        String?
+  phone        String?
+  interest     String?
+  source       LeadSource     @default(OTHER)
+  status       LeadStatus     @default(NEW)
+  notes        String?
+  assignedToId String?
+  archivedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  workspace    Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignedTo   User?          @relation("LeadOwner", fields: [assignedToId], references: [id], onDelete: SetNull)
+  tasks        Task[]
+  deals        Deal[]
+  activities   LeadActivity[]
 
   @@index([workspaceId, status, createdAt])
   @@index([workspaceId, email])
+  @@index([assignedToId])
 }
 
 model Customer {

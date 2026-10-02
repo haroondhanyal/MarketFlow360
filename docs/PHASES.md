@@ -1,62 +1,55 @@
 # MarketFlow360 implementation checklist
 
-Status: simplified MVP slices for phases 1–4 are implemented. The 13 supplied images are UI references across product modules; they do not each need their own implementation phase.
+The scope is delivered in small, reviewable slices for a seven-developer team. Phases 1–8 now have working MVP workflows. “MVP” means the application stores and validates the workflow data; it does not claim that an external social network, ad account or payment provider has been connected.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Foundation, authentication & tenancy | MVP complete |
-| 2 | Database & API foundation | MVP complete |
-| 3 | Lead CRM & sales pipeline | MVP complete |
-| 4 | Customers, deals & team tasks | MVP complete |
-| 5 | Dashboard & campaign management | Pending |
-| 6 | Content calendar & approvals | Pending |
-| 7 | Landing pages & lead capture | Pending |
-| 8 | Automation builder | Pending |
+| 1 | Foundation, authentication and tenancy | MVP implemented; email provider adapter and basic sign-in throttle added |
+| 2 | Database and API foundation | Implemented for current product models |
+| 3 | Lead CRM and sales pipeline | MVP implemented; ownership and CSV import/export added |
+| 4 | Customers, deals and team tasks | MVP implemented |
+| 5 | Dashboard and campaign management | MVP implemented |
+| 6 | Content calendar and approvals | MVP implemented |
+| 7 | Landing pages and lead capture | MVP implemented |
+| 8 | Automation builder | MVP implemented for new-lead trigger and two actions |
 | 9 | Integrations | Pending |
 | 10 | AI assistant | Pending |
-| 11 | SaaS plans, billing & platform admin | Pending |
-| 12 | Reporting, security & reliability | Pending |
-| 13 | Testing & CI | Pending |
-| 14 | Local running & deployment | In progress |
+| 11 | SaaS plans, billing and platform admin | Pending |
+| 12 | Reporting, security and reliability | Partial; production hardening remains |
+| 13 | Automated test suite and CI | Pending |
+| 14 | Local setup and deployment | Local setup documented; production deployment pending |
 
-## Phase 1–4 MVP scope delivered
+## Delivered in phases 1–4
 
-- **Phase 1:** registration with demo verification link, login/logout, hashed revocable sessions, password reset with demo link, workspace creation/switching, membership roles, invitations, read-only role enforcement, and explicit agency-client grants.
-- **Phase 2:** PostgreSQL/Prisma migrations and seed data for academy, retail and agency workspaces; REST API, validation and tenant-scoped access checks for the Phase 1–4 records.
-- **Phase 3:** lead board/table, create/edit/stage change/archive, source and interest, notes/activity history, duplicate warning, follow-up creation and customer/deal conversion.
-- **Phase 4:** customer profiles with related deals/tasks, deal value and stage, task due dates/status/priority, comments, and database-derived workspace overview metrics.
+- Registration, email verification, login/logout, password reset, hashed revocable sessions, workspace creation/switching, roles, invitations, agency-client grants and server-side workspace checks.
+- Optional Resend delivery for verification, reset and invitation email (`RESEND_API_KEY`, `EMAIL_FROM`). Without credentials the API keeps the local demo-link behavior. Sign-in failures are throttled per email/IP in process memory.
+- PostgreSQL/Prisma migrations, demo seed data, validated REST APIs and tenant-scoped CRUD for leads, customers, deals and tasks.
+- Lead board/table, stages, activity, archive, duplicate warning, follow-ups, conversion, workspace-member ownership, CSV export, and CSV import (500 rows per request, duplicate email rows skipped).
+- Customers, deals, task dates/status/priority/comments, a monthly task calendar, overview counts and role-based team screens.
 
-This is the simplified first delivery requested for seven developers. Advanced items from the full brief remain: email delivery via a configured provider, login rate limiting, custom pipelines, owner assignment, lead CSV import/export and bulk operations, file attachments, task calendar/reminder jobs, broad reporting, and a full automated test/CI suite. Do not treat the phase labels as claiming those advanced items are done.
+## Delivered in phases 5–8
 
-## Estimate
+- **Phase 5:** campaign create/list/update/delete, channel, status, planned budget, dates and goal. Overview shows active campaign count and planned budget.
+- **Phase 6:** content drafts, channel, schedule date, optional campaign link, and review/publish status tracking.
+- **Phase 7:** workspace landing page drafts and publishing, a public enquiry form, and capture directly into the owning workspace's lead list.
+- **Phase 8:** new-lead trigger with create-follow-up-task or update-lead-stage action, manual run, and stored run history. New lead records created in the CRM or by a published landing page execute enabled workflows.
 
-Rough engineering effort for the entire production-minded scope in the project brief:
+## Remaining gaps before a production launch
 
-| Phase | Estimate (person-days) |
-|---|---:|
-| 1. Foundation/auth/tenancy | 8–12 |
-| 2. Data model/API foundation | 8–12 |
-| 3. Leads and pipeline | 10–15 |
-| 4. Customers, deals, tasks | 8–12 |
-| 5. Dashboard and campaigns | 8–12 |
-| 6. Content and approvals | 8–12 |
-| 7. Landing pages/forms | 8–12 |
-| 8. Automations | 10–15 |
-| 9. Integration adapters | 8–15 |
-| 10. AI assistant | 4–7 |
-| 11. Plans, billing, admin | 8–12 |
-| 12. Reporting/security/reliability | 8–12 |
-| 13. Automated test suite and CI | 10–15 |
-| 14. Local setup/deployment docs | 4–7 |
-| **Total** | **110–170 person-days** |
+- Lead pipeline stage names/order remain fixed; CSV bulk status endpoint exists but there is no multi-select bulk action UI. File uploads/attachments have not been built.
+- Reminder dates appear in task and overview screens, but a durable scheduled reminder worker and delivery/retry policy are not configured. Sign-in throttling is in-memory and must move to shared storage such as Redis before horizontal scaling.
+- Campaigns do not publish to ad/social channels or ingest spend, impressions or conversions. Content status changes are internal workflow only; publishing and media storage require Phase 9 provider adapters.
+- Landing pages have a simple fixed form layout and do not yet provide a drag-and-drop page builder, configurable fields, custom domains or consent/legal templates.
+- Automations execute synchronously on lead creation. There is no general event bus, delayed action, branching, retry/dead-letter queue or workflow versioning.
+- Broad report exports, attachment scanning/storage, full production email operations, billing, AI, automated application tests/CI, and production deployment and observability are still planned.
 
-The first four phases account for about **34–51 person-days** at full scope. With seven developers working in parallel, reserve around **2–3 calendar weeks** for their integration and review. The entire product is roughly **6–10 calendar weeks** for seven developers, subject to provider access, review turnaround and operational/deployment requirements. These are planning estimates, not a fixed delivery commitment.
+## Effort estimate
 
-## Local verification completed
+The original full production-minded estimate remains **110–170 person-days** across 14 phases. Phases 1–8 MVP delivery is estimated at roughly **68–102 person-days** in total. For seven developers, allow about **3–5 calendar weeks** for parallel development plus review and integration, depending on provider access and test/release requirements. These are planning ranges, not a delivery guarantee.
 
-- `corepack pnpm build` — API and web production builds passed.
-- `corepack pnpm typecheck` — API and web checks passed.
-- PostgreSQL 16 temporary local database — Prisma migrations applied and seed command passed.
-- API smoke checks passed for sign-in, verification/reset flows, role invitations, workspace isolation, agency grants, duplicate warnings, lead conversion/activity, dashboard counts, lead archiving and task comments.
+## Verification in this checkout
 
-Docker Compose could not be started because the Docker daemon was unavailable; verification used a temporary local PostgreSQL cluster instead. No Playwright suite or CI pipeline exists yet.
+- API TypeScript check and Nest production build passed.
+- Web TypeScript check and Next production build passed.
+- A prior checkout verified Prisma migrations/seed and core CRM/auth flows against a temporary local PostgreSQL database. The new phase 5–8 migration has not yet been applied to a database in this turn.
+- Docker Compose and third-party provider delivery were not verified here. No automated test suite or CI workflow is present.

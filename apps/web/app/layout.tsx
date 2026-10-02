@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./screens.css";
+import "./marketing.css";
 
 export const metadata: Metadata = {
   title: "MarketFlow360",

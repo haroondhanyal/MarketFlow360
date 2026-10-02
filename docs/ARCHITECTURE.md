@@ -6,14 +6,14 @@ This is one pnpm repository with a web app, an API app, and local service config
 
 ```text
 Browser
-  └── Next.js screens (auth, overview, leads, customers, deals, tasks, team)
+  └── Next.js screens (auth, overview, CRM, campaigns, content, landing pages, automations)
         └── REST /api/v1 (NestJS)
               ├── Auth + workspace access guard
-              ├── Feature controllers (leads, customers, deals, tasks)
+              ├── Feature controllers (CRM, campaigns, content, pages, automations)
               └── Prisma → PostgreSQL
 ```
 
-Redis is provisioned in Docker Compose for later jobs; no background worker is implemented in phases 1–4.
+Redis is provisioned but not yet used by the application. Automations currently run synchronously inside the API request that creates a lead.
 
 ## Multi-tenancy and access
 
@@ -27,16 +27,18 @@ Redis is provisioned in Docker Compose for later jobs; no background worker is i
 
 - Passwords use Node’s `scrypt` with an individual random salt.
 - Session tokens are random values stored as SHA-256 hashes; cookies are `HttpOnly`, `SameSite=Strict`, expire after seven days, and are revoked on logout/reset.
-- Email verification, password reset and invitations use expiring, one-use token hashes. Since no email provider credentials are configured, local endpoints expose clearly labeled demo links; they do not send mail.
-- `NODE_ENV=production` enables the cookie `Secure` flag. A production deployment also needs TLS, email delivery and rate-limiting infrastructure before accepting public signups.
+- Email verification, password reset and invitations use expiring, one-use token hashes. A Resend adapter sends mail when `RESEND_API_KEY` is configured; otherwise endpoints return a demo URL.
+- Login throttling is held in process memory (eight failures per email/IP in a 15-minute window). Use shared Redis storage before running multiple API instances.
+- `NODE_ENV=production` enables the cookie `Secure` flag. A production deployment also needs TLS, configured mail, public-form abuse protection and operational monitoring.
 
 ## Data and API
 
-- Money uses integer minor units plus an explicit currency code. Dashboard money metrics remain `N/A` until campaign data exists.
+- Money uses integer minor units plus an explicit currency code. Campaign budgets are planned amounts; external spend/conversion metrics are unavailable until integrations exist.
 - PostgreSQL schema/migrations and seed fixtures live under `apps/api/prisma`.
 - DTOs use `class-validator`; a global `ValidationPipe` transforms input, strips unknown fields and rejects non-whitelisted properties.
-- REST routes are prefixed `/api/v1`; the API currently covers authentication, workspaces, leads, customers, deals, tasks and a database-derived overview.
-- Redis is only provisioned. There are no jobs for reminders, campaign publishing or automations yet.
+- REST routes are prefixed `/api/v1`; the API covers authentication, workspaces, leads, customers, deals, tasks, campaigns, content, landing pages, automations and a database-derived overview.
+- Public landing forms create workspace-scoped website leads. They do not yet have configurable consent fields, CAPTCHA/rate limits or custom-domain support.
+- Campaign/content state is internal; social publishing, media storage, durable reminder jobs and delayed/branched automation execution require later adapters/workers.
 
 ## Environment
 

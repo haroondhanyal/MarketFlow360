@@ -1,15 +1,17 @@
-import { Body, CanActivate, Controller, Delete, ExecutionContext, ForbiddenException, Get, Injectable, NotFoundException, Param, Patch, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { Body, CanActivate, Controller, Delete, ExecutionContext, ForbiddenException, Get, HttpException, Injectable, NotFoundException, Param, Patch, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from "class-validator";
 import { WorkspaceRole } from "@prisma/client";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import type { Request, Response } from "express";
 import { PrismaService } from "./prisma.service";
+import { sendOrPrepareDemoMail } from "./mail";
 
 const scrypt = promisify(scryptCb) as (password: string, salt: string, keylen: number) => Promise<Buffer>;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const COOKIE = "mf_session";
 const READ_ONLY_ROLES = ["CONTENT_CREATOR", "APPROVER", "ANALYST", "CLIENT_VIEWER"];
+const loginFailures = new Map<string, { count: number; resetAt: number }>();
 
 export class RegisterDto {
   @IsString() @MinLength(2) name!: string;
@@ -64,7 +66,9 @@ export class WorkspaceGuard implements CanActivate {
     if (!membership && !grant) throw new UnauthorizedException("Workspace access denied.");
     const agencyRole = grant?.agencyWorkspace.memberships[0]?.role;
     req.workspaceRole = membership?.role ?? (agencyRole && READ_ONLY_ROLES.includes(agencyRole) ? agencyRole : grant?.accessRole);
-    if (!(["GET", "HEAD", "OPTIONS"].includes(req.method)) && ["CONTENT_CREATOR", "APPROVER", "ANALYST", "CLIENT_VIEWER"].includes(req.workspaceRole ?? "")) {
+    const contentRoute = req.path.includes("/content");
+    const contentRoleCanWrite = contentRoute && ((req.workspaceRole === "CONTENT_CREATOR" && ["POST", "PATCH"].includes(req.method)) || (req.workspaceRole === "APPROVER" && req.method === "PATCH"));
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && ["CONTENT_CREATOR", "APPROVER", "ANALYST", "CLIENT_VIEWER"].includes(req.workspaceRole ?? "") && !contentRoleCanWrite) {
       throw new ForbiddenException("Your workspace role is read-only for this action.");
     }
     req.workspaceId = workspaceId;
@@ -89,18 +93,30 @@ export class AuthController {
     const token = randomBytes(32).toString("hex");
     const user = await this.db.user.create({ data: { name: dto.name.trim(), email, passwordHash: `${salt}:${key.toString("hex")}`, memberships: { create: { role: "OWNER", workspace: { create: { name: dto.workspaceName.trim() } } } } }, include: { memberships: { include: { workspace: true } } } });
     await this.db.authChallenge.create({ data: { userId: user.id, kind: "EMAIL_VERIFY", tokenHash: hash(token), expiresAt: new Date(Date.now() + 86400_000) } });
-    return { user: { id: user.id, name: user.name, email: user.email }, workspaces: user.memberships.map(m => ({ ...m.workspace, role: m.role })), verificationUrl: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/verify?token=${token}`, delivery: "Demo mode: no email was sent." };
+    const mail = await sendOrPrepareDemoMail({ to: email, subject: "Verify your MarketFlow360 account", intro: "Verify your email address to finish setting up your workspace.", url: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/verify?token=${token}` });
+    return { user: { id: user.id, name: user.name, email: user.email }, workspaces: user.memberships.map(m => ({ ...m.workspace, role: m.role })), verificationUrl: mail.url, delivery: mail.delivery };
   }
 
   @Post("login")
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    const user = await this.db.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
-    if (!user) throw new UnauthorizedException("Email or password is incorrect.");
+  async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const email = dto.email.trim().toLowerCase();
+    const rateKey = `${email}:${req.ip}`;
+    const existing = loginFailures.get(rateKey);
+    if (existing && existing.resetAt > Date.now() && existing.count >= 8) throw new HttpException("Too many sign-in attempts. Try again in 15 minutes.", 429);
+    const fail = () => {
+      const current = loginFailures.get(rateKey);
+      if (!current || current.resetAt <= Date.now()) loginFailures.set(rateKey, { count: 1, resetAt: Date.now() + 15 * 60_000 });
+      else current.count += 1;
+      if (loginFailures.size > 10_000) for (const [key, entry] of loginFailures) { if (entry.resetAt <= Date.now()) loginFailures.delete(key); if (loginFailures.size <= 10_000) break; }
+    };
+    const user = await this.db.user.findUnique({ where: { email } });
+    if (!user) { fail(); throw new UnauthorizedException("Email or password is incorrect."); }
     if (!user.verifiedAt) throw new UnauthorizedException("Verify your email address before signing in.");
     const [salt, expectedHex] = user.passwordHash.split(":");
     const actual = await scrypt(dto.password, salt, 64);
     const expected = Buffer.from(expectedHex, "hex");
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new UnauthorizedException("Email or password is incorrect.");
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) { fail(); throw new UnauthorizedException("Email or password is incorrect."); }
+    loginFailures.delete(rateKey);
     const token = randomBytes(32).toString("hex");
     await this.db.session.create({ data: { userId: user.id, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400_000) } });
     this.cookie(res, token, 7 * 86400_000);
@@ -122,10 +138,11 @@ export class AuthController {
   @Post("password-reset/request")
   async requestPasswordReset(@Body() dto: ResetRequestDto) {
     const user = await this.db.user.findUnique({ where: { email: dto.email.trim().toLowerCase() } });
-    if (!user) return { ok: true, message: "If the account exists, a reset link is ready in demo mode." };
+    if (!user) return { ok: true, message: process.env.RESEND_API_KEY ? "If the account exists, check its email for a reset link." : "If the account exists, a reset link is ready in demo mode." };
     const token = randomBytes(32).toString("hex");
     await this.db.authChallenge.create({ data: { userId: user.id, kind: "PASSWORD_RESET", tokenHash: hash(token), expiresAt: new Date(Date.now() + 3600_000) } });
-    return { ok: true, resetUrl: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/reset-password?token=${token}`, delivery: "Demo mode: no email was sent." };
+    const mail = await sendOrPrepareDemoMail({ to: user.email, subject: "Reset your MarketFlow360 password", intro: "Use this one-time link to choose a new password.", url: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/reset-password?token=${token}` });
+    return { ok: true, resetUrl: mail.url, message: process.env.RESEND_API_KEY ? "If the account exists, check its email for a reset link." : "If the account exists, a reset link is ready in demo mode." };
   }
 
   @Post("password-reset/confirm")
@@ -223,7 +240,8 @@ export class WorkspaceController {
     if (alreadyMember) throw new ForbiddenException("This person is already a workspace member.");
     const token = randomBytes(32).toString("hex");
     const invitation = await this.db.invitation.create({ data: { workspaceId: id, invitedById: req.authUser!.id, email, role: dto.role, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400_000) } });
-    return { id: invitation.id, email, role: dto.role, expiresAt: invitation.expiresAt, acceptUrl: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/invite?token=${token}`, delivery: "Demo mode: no email was sent." };
+    const mail = await sendOrPrepareDemoMail({ to: email, subject: "You are invited to MarketFlow360", intro: "You have been invited to join a MarketFlow360 workspace.", url: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/invite?token=${token}` });
+    return { id: invitation.id, email, role: dto.role, expiresAt: invitation.expiresAt, acceptUrl: mail.url, delivery: mail.delivery };
   }
   private async requireManager(id: string, req: SignedRequest) {
     const workspaceId = req.header("x-workspace-id");
