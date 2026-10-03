@@ -20,7 +20,11 @@ async function main() {
     throw new Error(`Refusing to seed demo data into non-local database host: ${databaseHost || "<empty>"}.`);
   }
   const password = await passwordHash("MarketFlow2026!");
-  const owner = await prisma.user.upsert({ where: { email: "owner@nexora.example" }, update: { profileImage: "/demo-avatars/haroon-jamal.jpg" }, create: { name: "Haroon Jamal", email: "owner@nexora.example", passwordHash: password, profileImage: "/demo-avatars/haroon-jamal.jpg", verifiedAt: new Date() } });
+  const existingOwner = await prisma.user.findUnique({ where: { email: "rajaharoon320@gmail.com" } })
+    ?? await prisma.user.findUnique({ where: { email: "owner@nexora.example" } });
+  const owner = existingOwner
+    ? await prisma.user.update({ where: { id: existingOwner.id }, data: { name: "Raja Haroon Jamal", email: "rajaharoon320@gmail.com", profileImage: "/demo-avatars/haroon-jamal.jpg" } })
+    : await prisma.user.create({ data: { name: "Raja Haroon Jamal", email: "rajaharoon320@gmail.com", passwordHash: password, profileImage: "/demo-avatars/haroon-jamal.jpg", verifiedAt: new Date() } });
   const academy = await prisma.workspace.upsert({ where: { id: "demo-nexora-academy" }, update: {}, create: { id: "demo-nexora-academy", name: "Nexora Academy", type: "BUSINESS" } });
   await prisma.membership.upsert({ where: { userId_workspaceId: { userId: owner.id, workspaceId: academy.id } }, update: { role: "OWNER" }, create: { userId: owner.id, workspaceId: academy.id, role: "OWNER" } });
 

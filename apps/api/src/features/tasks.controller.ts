@@ -11,11 +11,11 @@ export class TasksController {
   @Post() async create(@Body() dto: TaskDto, @Req() req: SignedRequest) { await this.checkLinks(dto, req); await this.checkAssignee(dto.assignedToId, req); const task = await this.db.task.create({ data: { ...dto, ...scoped(req), assignedToId: dto.assignedToId ?? req.authUser!.id, dueAt: dto.dueAt ? new Date(dto.dueAt) : undefined } }); await this.syncReminder(task); return task; }
   @Get(":id/comments") async comments(@Param("id") id: string, @Req() req: SignedRequest) {
     const task = await this.db.task.findFirst({ where: { id, ...scoped(req) } }); if (!task) throw new NotFoundException("Task not found.");
-    return this.db.taskComment.findMany({ where: { taskId: id }, include: { user: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" } });
+    return this.db.taskComment.findMany({ where: { taskId: id }, include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } });
   }
   @Post(":id/comments") async comment(@Param("id") id: string, @Body() dto: TaskCommentDto, @Req() req: SignedRequest) {
     const task = await this.db.task.findFirst({ where: { id, ...scoped(req) } }); if (!task) throw new NotFoundException("Task not found.");
-    return this.db.taskComment.create({ data: { taskId: id, userId: req.authUser!.id, body: dto.body.trim() }, include: { user: { select: { id: true, name: true } } } });
+    return this.db.taskComment.create({ data: { taskId: id, userId: req.authUser!.id, body: dto.body.trim() }, include: { user: { select: { id: true, name: true, email: true } } } });
   }
   @Patch(":id") async update(@Param("id") id: string, @Body() dto: UpdateTaskDto, @Req() req: SignedRequest) {
     const row = await this.db.task.findFirst({ where: { id, ...scoped(req) } }); if (!row) throw new NotFoundException("Task not found."); await this.checkLinks(dto, req); await this.checkAssignee(dto.assignedToId, req);

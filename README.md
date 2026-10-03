@@ -129,11 +129,11 @@ Run the database-generation, migration and seed commands above. `apps/api/.env` 
 
 ### Demo accounts
 
-The seed creates five fictional local accounts, 20 company workspaces and two team memberships per workspace. All five accounts use the local-only password `MarketFlow2026!`.
+The seed creates five local accounts, 20 company workspaces and two team memberships per workspace. All five accounts use the local-only password `MarketFlow2026!`.
 
 | User | Email |
 |---|---|
-| Haroon Jamal | `owner@nexora.example` |
+| Raja Haroon Jamal | `rajaharoon320@gmail.com` |
 | Amina Shah | `owner@urbanretail.example` |
 | Adil Agency | `owner@brightagency.example` |
 | Sana Qureshi | `sana@northstar.example` |
