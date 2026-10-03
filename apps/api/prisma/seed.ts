@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { randomBytes, scrypt as scryptCb } from "node:crypto";
 import { promisify } from "node:util";

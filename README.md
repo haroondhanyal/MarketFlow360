@@ -5,68 +5,129 @@
 <h1 align="center">Marketing, CRM & Business Digitalization</h1>
 
 <p align="center">
-  One simple workspace for leads, customers, deals, follow-ups and marketing work.
+  A multi-workspace CRM and marketing toolkit for small businesses, academies, retailers, service teams and agencies.
+</p>
+
+<p align="center">
+  <a href="#product-screens">Screenshots</a> ·
+  <a href="#get-started">Get started</a> ·
+  <a href="docs/PHASES.md">Delivery phases</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
 
 ---
 
 ## Product overview
 
-**MarketFlow360** is a business-neutral SaaS platform for small businesses, academies, retailers, service teams, consultants and marketing agencies. It brings customer enquiries, sales follow-ups, campaign planning and business reporting into one workspace. A business manages its own contacts; an agency can manage separate client workspaces with explicit access grants. Each workspace has its own team, records, currency and settings.
+MarketFlow360 brings enquiries, sales follow-ups and marketing work into one workspace. Teams can capture a lead, move it through a configurable pipeline, convert it to a customer and deal, and keep the next action visible as a task. Campaign, content, landing-page and reporting screens use the same workspace data.
 
-The product is designed to replace scattered spreadsheets and disconnected tools with a clear daily workflow:
+The repository is a **local-ready MVP** built as a small-team modular monolith. It is not a production SaaS deployment: payment processing, third-party social publishing, provider OAuth and production operations need further integrations and deployment work.
 
-1. Capture a lead and record its source and interest.
-2. Track the lead through a simple sales pipeline.
-3. Convert an interested lead into a customer and deal.
-4. Set a follow-up task and keep its due date visible.
-5. Review activity and performance from workspace records.
-6. Add campaign, content, landing-page and automation tools as the related phases are delivered.
+## Product screens
 
-The supplied MarketFlow360 screenshots guide the visual style: a dark navy navigation rail, clear white work surfaces, purple primary actions, calm status colors, readable cards and responsive layouts. Screens are separate routes and feature modules, so a small team can work on them independently without building a complicated frontend framework.
+These current screenshots were captured from the local application with its fictional demo data.
 
-## What works now
+| Workspace overview | Lead pipeline |
+|---|---|
+| <img src="docs/screenshots/overview.png" alt="MarketFlow360 workspace overview" width="680" /> | <img src="docs/screenshots/leads-pipeline.png" alt="MarketFlow360 lead pipeline" width="680" /> |
 
-- Responsive overview based on saved leads, deals and tasks.
-- Registration creates a user and an Owner workspace; demo verification and password-reset links work without an email provider. Login/logout uses hashed, revocable HTTP-only sessions.
-- Workspace switcher and server-checked workspace membership on record APIs.
-- Owner/Admin team screen, role changes, single-use invitations and invitation acceptance. Invitations return a demo acceptance URL; no email is sent.
-- Business and agency workspace types. Agency users can switch into explicitly granted client workspaces; the sample Bright Digital Agency has a seeded grant to Urban Retail.
-- Separate Leads, Customers, Deals and Tasks screens with create, update, stage change and delete actions.
-- Lead board and table views, a default pipeline, a basic stage-transition check and a lead activity timeline API.
-- Lead assignment, rename/reorder for the standard pipeline stages, CSV import/export and multi-select bulk stage changes.
-- Lead conversion creates a customer and deal in one database transaction.
-- Task follow-ups can be reviewed in list/calendar views; persisted reminders are sent 30 minutes before due time when Resend is configured.
-- Lead, customer and task attachments support safe-download file handling and files up to 3 MB stored in PostgreSQL.
-- Related leads/customers are checked to belong to the same workspace before creating or editing deals and tasks.
-- Seeded Nexora Academy and Urban Retail demonstration workspaces.
-- Campaign management with planned budget, content calendar and approval statuses, hosted enquiry pages, and lead-triggered follow-up automations.
-- Workspace summaries and CSV reports for leads, deals, tasks, campaigns and content.
-- Optional Resend delivery for verification, reset and invite emails; demo links are returned when provider credentials are not configured.
+| Campaign management | Workspace assistant |
+|---|---|
+| <img src="docs/screenshots/campaigns.png" alt="MarketFlow360 campaign management" width="680" /> | <img src="docs/screenshots/assistant.png" alt="MarketFlow360 workspace assistant with suggested questions" width="680" /> |
 
-## What is still planned
+| Account profile and appearance settings |
+|---|
+| <img src="docs/screenshots/account-appearance.png" alt="MarketFlow360 account profile and appearance settings" width="680" /> |
 
-Social/ad publishing and actual spend metrics, arbitrary pipeline stages, large-file object storage/scanning, date-filtered reports, workflow branches/delays, broad provider integrations, billing, AI and production release automation remain future work. Content statuses track the internal review flow; they do not publish to social platforms. Campaign budget is planned, not actual channel spend. See [the phase checklist](docs/PHASES.md) for exact scope and remaining work.
+Screenshots live in [`docs/screenshots`](docs/screenshots). Refresh them after a major UI change and keep them based on fictional/local data.
 
-## Run locally
+## What is implemented
 
-Requirements: Node.js 24, Corepack, and Docker Compose.
+### CRM and workspace operations
+
+- Multiple workspaces per account, workspace creation/switching, agency-to-client grants and server-validated tenant access.
+- Leads board/table, custom stages, assignment, activity, duplicate checks, CSV import/export, bulk stage updates and lead conversion.
+- Customer and deal records, team tasks, comments, calendar, due reminders and record attachments.
+- Team invitations, workspace roles and access controls.
+- Personal profile with editable name, phone, profile photo and password. Sign-in/sign-up password visibility controls and country calling code at registration.
+
+### Marketing and automation
+
+- Campaign planning with channel, status, budget, dates and goals. Budgets are planned values; ad-platform spend and performance are not synced.
+- Content calendar with drafts, review and publish-state tracking. Status changes do not publish externally.
+- Public enquiry pages with configurable text questions and lead capture into the owning workspace.
+- Lead-triggered automations with a source or stage condition, one action, optional delay up to seven days, run history and up to three attempts. Delayed work is polled by an API worker.
+- Inbound webhook integration for creating workspace leads.
+
+### Insights and settings
+
+- Workspace overview, date-filtered reports, lead trends, CSV export, audit events and database health endpoints.
+- Workspace assistant with suggested questions and responses grounded in the selected workspace's leads, tasks, deals, sources and campaigns. It uses local rules and database records; no external generative AI service is connected.
+- Plan catalog, optional external billing-portal link and an allowlisted platform-admin overview. There is no checkout or payment collection.
+- Appearance settings with light, dark and high-contrast themes and selectable UI font stacks. Preferences are saved in the browser.
+- MarketFlow360 favicon for the browser tab.
+
+## Technology and layout
+
+| Area | Implementation |
+|---|---|
+| Web | Next.js App Router, React, TypeScript and responsive CSS |
+| API | NestJS REST API, DTO validation and workspace guards |
+| Data | PostgreSQL, Prisma schema, migrations and demo seed |
+| Repository | pnpm workspace with separate `apps/web` and `apps/api` packages |
+| Local services | Docker Compose PostgreSQL and Redis; Redis is provisioned but not currently used by the app |
+| CI | GitHub Actions for migrations, TypeScript checks, production builds and API integration tests |
+
+```text
+Browser → Next.js web app → NestJS /api/v1 → Prisma → PostgreSQL
+                                      ├── CRM and workspace APIs
+                                      ├── Campaign, content and landing-page APIs
+                                      ├── Reports and workspace assistant
+                                      └── Automation/reminder polling workers
+```
+
+## Get started
+
+### Requirements
+
+- Node.js 24
+- Corepack with pnpm 10.17.1
+- Docker Compose **or** a local PostgreSQL 17 server
+
+### Docker Compose setup
+
+From the repository root:
 
 ```sh
 docker compose -f infra/docker-compose.yml up -d
 corepack pnpm install
 cp apps/api/.env.example apps/api/.env
+```
+
+Then initialize the database and start the apps:
+
+```sh
 corepack pnpm --filter @marketflow/api db:generate
 corepack pnpm --filter @marketflow/api db:migrate
 corepack pnpm --filter @marketflow/api db:seed
 corepack pnpm dev
 ```
 
-Open the web app at <http://localhost:3000>. API health is at <http://localhost:4000/api/v1/health>. The web app expects the API at `http://localhost:4000/api/v1`; override with `NEXT_PUBLIC_API_URL` when needed. API settings are in `apps/api/.env.example`.
+Open the web app at <http://localhost:3000>. The API is at <http://localhost:4000/api/v1>; database readiness is <http://localhost:4000/api/v1/health/ready>.
 
-Set `RESEND_API_KEY` and `EMAIL_FROM` in `apps/api/.env` to send account verification, password reset, workspace invitations and task reminders through Resend. Without these values, auth endpoints return local demo links and scheduled reminders wait without sending. Task reminders are stored in PostgreSQL and polled by the API; use one API instance until the worker is moved to shared job infrastructure. Uploaded record attachments are stored in PostgreSQL, max 3 MB per file.
+### Existing local PostgreSQL
 
-### Demo sign-in
+Create a local database named `marketflow`, copy `apps/api/.env.example` to `apps/api/.env`, and set `DATABASE_URL` to:
+
+```text
+postgresql://YOUR_LOCAL_POSTGRES_USER@localhost:5432/marketflow?schema=public
+```
+
+Run the database-generation, migration and seed commands above. `apps/api/.env` is ignored by Git and must not be committed.
+
+### Demo accounts
+
+The seed includes fictional local accounts:
 
 | Workspace | Email | Password |
 |---|---|---|
@@ -74,47 +135,89 @@ Set `RESEND_API_KEY` and `EMAIL_FROM` in `apps/api/.env` to send account verific
 | Urban Retail | `owner@urbanretail.example` | `MarketFlow2026!` |
 | Bright Digital Agency | `owner@brightagency.example` | `MarketFlow2026!` |
 
-These are fictional local demo accounts. The agency account has explicit Sales Agent access to Urban Retail. The seed command refuses to run when `NODE_ENV=production`.
+The agency demo has explicit access to Urban Retail. These credentials are only for the local demo. The seed command refuses to run when `NODE_ENV=production`.
 
-## Simple team boundaries for seven developers
+## Configuration
 
-The code is split around product areas and a small shared foundation. This gives seven people clear files and API ownership without introducing microservices or extra frameworks.
+API variables are documented in [`apps/api/.env.example`](apps/api/.env.example).
 
-| Developer | Main area | Main files / routes |
-|---|---|---|
-| 1 | Shared app shell and UI conventions | `apps/web/app/workspace-shell.tsx`, `apps/web/app/screens.css` |
-| 2 | Login, workspaces and team access | `apps/web/app/login`, `apps/web/app/register`, `apps/api/src/auth.ts` |
-| 3 | Leads pipeline and conversion | `apps/web/app/screens/leads-screen.tsx`, `apps/api/src/features/leads.controller.ts` |
-| 4 | Customers and deals | `apps/web/app/screens/customers-screen.tsx`, `deals-screen.tsx`, matching API controller files |
-| 5 | Tasks and follow-ups | `apps/web/app/screens/tasks-screen.tsx`, `apps/api/src/features/tasks.controller.ts` |
-| 6 | Database, fixtures and API changes | `apps/api/prisma`, `apps/api/src/prisma.service.ts` |
-| 7 | Integration, responsive review and delivery docs | `docs`, `infra`, root scripts and cross-feature review |
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `WEB_ORIGIN` | Web origin for CORS and generated verification/reset links |
+| `SESSION_SECRET` | Local session/security secret; replace the example before any shared deployment |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Optional delivery for verification, reset, invitation and task reminder email |
+| `PLATFORM_ADMIN_EMAILS` | Comma-separated allowlist for platform-admin access |
+| `BILLING_PORTAL_URL` | Optional link to an externally hosted billing portal |
+| `PORT` | API port; defaults to `4000` |
 
-Keep changes within the assigned product area when possible. Coordinate schema edits before changing `schema.prisma`, then regenerate the Prisma client. Keep shared helpers small and avoid moving another developer's code without checking first.
+The web app uses `NEXT_PUBLIC_API_URL`, defaulting to `http://localhost:4000/api/v1`.
 
-## Repository structure
-
-```text
-apps/
-  web/                 Next.js pages, styles and small screen components
-  api/                 NestJS REST API, Prisma schema and seed data
-infra/                 Local PostgreSQL and Redis Compose services
-docs/                  Architecture and phase tracking
-```
-
-The frontend uses Next.js, TypeScript and Tailwind CSS. The API uses NestJS, class-validator and Prisma with PostgreSQL. CRM features have separate screens and controller files, with DTOs and a small workspace guard shared across them. All CRM records are queried within the authenticated workspace. Workspace IDs received in `x-workspace-id` are verified against a direct membership or an explicit agency-client grant before the API uses them.
+Without Resend credentials, authentication routes return demo links for local use and reminder emails cannot be delivered. A billing URL is only a link: it does not configure payments or change subscription plans.
 
 ## Useful commands
 
 ```sh
-corepack pnpm dev                         # web and API in watch mode
-corepack pnpm build                       # production builds
-corepack pnpm typecheck                   # TypeScript checks
+corepack pnpm dev                         # Run web and API in watch mode
+corepack pnpm typecheck                   # Type-check all packages
+corepack pnpm build                       # Production builds
+corepack pnpm test                        # API integration suite; requires marketflow_test
 corepack pnpm --filter @marketflow/api db:generate
 corepack pnpm --filter @marketflow/api db:migrate
+corepack pnpm --filter @marketflow/api db:deploy
 corepack pnpm --filter @marketflow/api db:seed
 ```
 
-## Delivery plan
+### Integration tests
 
-See [the phased checklist and initial effort estimate](docs/PHASES.md) and [architecture notes](docs/ARCHITECTURE.md). The first four phases focus on the foundation, auth/tenancy, core database APIs, lead CRM, customers, deals and tasks; phases 5–14 add marketing execution, integrations, platform billing, hardening and deployment.
+Use a separate database named `marketflow_test`; the test script refuses any other database name:
+
+```sh
+createdb marketflow_test
+DATABASE_URL='postgresql://YOUR_LOCAL_POSTGRES_USER@localhost:5432/marketflow_test?schema=public' corepack pnpm --filter @marketflow/api db:deploy
+DATABASE_URL='postgresql://YOUR_LOCAL_POSTGRES_USER@localhost:5432/marketflow_test?schema=public' corepack pnpm test
+```
+
+The API integration suite covers authentication, tenant isolation, dynamic pipeline stages, landing-page form questions, scheduled automations, webhook capture, reports, audit events and shared rate limits. It removes its test workspace and user when it finishes.
+
+## Repository map
+
+```text
+apps/
+  api/                 NestJS modules, Prisma schema, migrations, seed and API integration suite
+  web/                 Next.js routes, feature screens, styles, logo and favicon
+docs/
+  ARCHITECTURE.md      Runtime shape, tenancy and security notes
+  PHASES.md            Delivery scope, phase status, limitations and effort estimate
+  screenshots/         Current local product screenshots used in this README
+infra/                 Local PostgreSQL and Redis Compose configuration
+.github/workflows/     CI pipeline
+```
+
+## Seven-developer work split
+
+The feature boundaries support parallel work without splitting the application into microservices.
+
+| Developer | Primary area | Main files |
+|---|---|---|
+| 1 | App shell, navigation and shared visual system | `apps/web/app/workspace-shell.tsx`, `apps/web/app/screens.css` |
+| 2 | Authentication, account profile and team access | `apps/web/app/login`, `apps/web/app/register`, `apps/web/app/profile`, `apps/api/src/auth.ts` |
+| 3 | Lead CRM and pipeline | `apps/web/app/screens/leads-screen.tsx`, `apps/api/src/features/leads.controller.ts` |
+| 4 | Customers and deals | `apps/web/app/screens/customers-screen.tsx`, `apps/web/app/screens/deals-screen.tsx`, API feature controllers |
+| 5 | Tasks and reminders | `apps/web/app/screens/tasks-screen.tsx`, `apps/api/src/features/tasks.controller.ts` |
+| 6 | Database, migrations and API foundation | `apps/api/prisma`, `apps/api/src/prisma.service.ts` |
+| 7 | Marketing, reports, integration and release docs | `apps/web/app/screens/marketing-screen.tsx`, `apps/api/src/features`, `docs/`, `.github/` |
+
+Coordinate Prisma schema changes before editing `schema.prisma`; add a migration and regenerate Prisma Client after changes.
+
+## Known limitations
+
+- Social/ad OAuth, message sending, ad metrics and content publishing need provider-specific integrations.
+- Automations support one condition and one action. The delayed-run worker is in-process; run one API instance until worker claiming moves to shared queue infrastructure.
+- The assistant uses deterministic rules over the selected workspace data. Connect a model provider to add natural-language generation.
+- Attachments are stored in PostgreSQL, capped at 3 MB, and do not have malware scanning or external object storage.
+- Billing is informational. There is no payment collection, invoice handling or plan enforcement.
+- Public forms and webhook endpoints have database-backed rate limits, but no CAPTCHA or edge/WAF integration.
+- Backups, monitoring, deployment automation and production hosting are outside the local MVP scope.
+
+See [the phased checklist](docs/PHASES.md) for implementation status and remaining work, and [the architecture notes](docs/ARCHITECTURE.md) for tenancy, security and runtime details.

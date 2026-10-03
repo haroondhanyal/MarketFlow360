@@ -1,0 +1,44 @@
+name: MarketFlow360 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: marketflow
+          POSTGRES_PASSWORD: marketflow
+          POSTGRES_DB: marketflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U marketflow -d marketflow_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://marketflow:marketflow@localhost:5432/marketflow_test?schema=public
+      WEB_ORIGIN: http://localhost:3000
+      SESSION_SECRET: ci-only-session-secret-not-for-deployment
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @marketflow/api db:generate
+      - run: pnpm --filter @marketflow/api db:deploy
+      - run: pnpm -r typecheck
+      - run: pnpm -r build
+      - run: pnpm --filter @marketflow/api test:integration

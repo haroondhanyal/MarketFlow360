@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "corepack pnpm --parallel --filter @marketflow/web --filter @marketflow/api dev",
     "build": "corepack pnpm -r build",
-    "typecheck": "corepack pnpm -r typecheck"
+    "typecheck": "corepack pnpm -r typecheck",
+    "test": "corepack pnpm --filter @marketflow/api test:integration"
   }
 }

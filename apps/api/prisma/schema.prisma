@@ -60,6 +60,8 @@ model User {
   name                String
   email               String               @unique
   passwordHash        String
+  phone               String?
+  profileImage        String?
   verifiedAt          DateTime?
   createdAt           DateTime             @default(now())
   sessions            Session[]
@@ -121,6 +123,9 @@ model Workspace {
   invitations    Invitation[]
   clientGrants   AgencyClientAccess[] @relation("AgencyWorkspace")
   agencyGrants   AgencyClientAccess[] @relation("ClientWorkspace")
+  integrations  IntegrationConnection[]
+  auditEvents   AuditEvent[]
+  subscription  WorkspaceSubscription?
 }
 
 enum CampaignStatus {
@@ -186,6 +191,7 @@ model LandingPage {
   description String    @default("")
   buttonText  String    @default("Send")
   interest    String?
+  formFields  Json      @default("[]")
   isPublished Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -201,6 +207,9 @@ model Automation {
   trigger     String
   action      String
   actionValue String?
+  conditionField String?
+  conditionValue String?
+  delayMinutes Int @default(0)
   isActive    Boolean         @default(false)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
@@ -215,16 +224,22 @@ model AutomationRun {
   automationId String
   recordId     String?
   result       String
+  status       String     @default("DONE")
+  scheduledAt  DateTime?
+  claimedAt    DateTime?
+  attempts     Int        @default(0)
+  lastError    String?
   createdAt    DateTime   @default(now())
   automation   Automation @relation(fields: [automationId], references: [id], onDelete: Cascade)
 
   @@index([automationId, createdAt])
+  @@index([status, scheduledAt, claimedAt])
 }
 
 model PipelineStage {
   id          String     @id @default(cuid())
   workspaceId String
-  key         LeadStatus
+  key         String
   label       String
   position    Int
   workspace   Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -285,7 +300,7 @@ model Lead {
   phone        String?
   interest     String?
   source       LeadSource     @default(OTHER)
-  status       LeadStatus     @default(NEW)
+  status       String         @default("NEW")
   notes        String?
   assignedToId String?
   archivedAt   DateTime?
@@ -417,4 +432,50 @@ model TaskComment {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([taskId, createdAt])
+}
+
+model IntegrationConnection {
+  id          String   @id @default(cuid())
+  workspaceId String
+  provider    String
+  label       String
+  webhookKey  String   @unique
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@unique([workspaceId, provider])
+  @@index([workspaceId, createdAt])
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  actorId     String?
+  action      String
+  entity      String
+  entityId    String?
+  details     Json?
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  @@index([workspaceId, createdAt])
+}
+
+model WorkspaceSubscription {
+  id          String   @id @default(cuid())
+  workspaceId String @unique
+  plan        String   @default("FREE")
+  status      String   @default("ACTIVE")
+  periodEnd   DateTime?
+  updatedAt   DateTime @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model LoginThrottle {
+  id        String   @id @default(cuid())
+  keyHash   String   @unique
+  attempts  Int      @default(0)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+  @@index([resetAt])
 }

@@ -1,5 +1,5 @@
-import { Body, CanActivate, Controller, Delete, ExecutionContext, ForbiddenException, Get, HttpException, Injectable, NotFoundException, Param, Patch, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
-import { IsEmail, IsEnum, IsOptional, IsString, MinLength } from "class-validator";
+import { BadRequestException, Body, CanActivate, Controller, Delete, ExecutionContext, ForbiddenException, Get, HttpException, Injectable, NotFoundException, Param, Patch, Post, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { IsEmail, IsEnum, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 import { WorkspaceRole } from "@prisma/client";
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
@@ -11,13 +11,23 @@ const scrypt = promisify(scryptCb) as (password: string, salt: string, keylen: n
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const COOKIE = "mf_session";
 const READ_ONLY_ROLES = ["CONTENT_CREATOR", "APPROVER", "ANALYST", "CLIENT_VIEWER"];
-const loginFailures = new Map<string, { count: number; resetAt: number }>();
 
 export class RegisterDto {
   @IsString() @MinLength(2) name!: string;
   @IsEmail() email!: string;
   @IsString() @MinLength(10) password!: string;
   @IsString() @MinLength(2) workspaceName!: string;
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @IsOptional() @IsString() @MaxLength(1_500_000) profileImage?: string;
+}
+export class ProfileDto {
+  @IsString() @MinLength(2) @MaxLength(80) name!: string;
+  @IsOptional() @IsString() @MaxLength(40) phone?: string;
+  @IsOptional() @IsString() @MaxLength(1_500_000) profileImage?: string;
+}
+export class ChangePasswordDto {
+  @IsString() currentPassword!: string;
+  @IsString() @MinLength(10) newPassword!: string;
 }
 export class LoginDto { @IsEmail() email!: string; @IsString() password!: string; }
 export class CreateWorkspaceDto { @IsString() @MinLength(2) name!: string; @IsOptional() @IsString() type?: "BUSINESS" | "AGENCY"; }
@@ -91,7 +101,8 @@ export class AuthController {
     const salt = randomBytes(16).toString("hex");
     const key = await scrypt(dto.password, salt, 64);
     const token = randomBytes(32).toString("hex");
-    const user = await this.db.user.create({ data: { name: dto.name.trim(), email, passwordHash: `${salt}:${key.toString("hex")}`, memberships: { create: { role: "OWNER", workspace: { create: { name: dto.workspaceName.trim() } } } } }, include: { memberships: { include: { workspace: true } } } });
+    this.validateProfileImage(dto.profileImage);
+    const user = await this.db.user.create({ data: { name: dto.name.trim(), email, phone: dto.phone?.trim() || null, profileImage: dto.profileImage ?? null, passwordHash: `${salt}:${key.toString("hex")}`, memberships: { create: { role: "OWNER", workspace: { create: { name: dto.workspaceName.trim() } } } } }, include: { memberships: { include: { workspace: true } } } });
     await this.db.authChallenge.create({ data: { userId: user.id, kind: "EMAIL_VERIFY", tokenHash: hash(token), expiresAt: new Date(Date.now() + 86400_000) } });
     const mail = await sendOrPrepareDemoMail({ to: email, subject: "Verify your MarketFlow360 account", intro: "Verify your email address to finish setting up your workspace.", url: `${process.env.WEB_ORIGIN ?? "http://localhost:3000"}/verify?token=${token}` });
     return { user: { id: user.id, name: user.name, email: user.email }, workspaces: user.memberships.map(m => ({ ...m.workspace, role: m.role })), verificationUrl: mail.url, delivery: mail.delivery };
@@ -101,22 +112,32 @@ export class AuthController {
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const email = dto.email.trim().toLowerCase();
     const rateKey = `${email}:${req.ip}`;
-    const existing = loginFailures.get(rateKey);
-    if (existing && existing.resetAt > Date.now() && existing.count >= 8) throw new HttpException("Too many sign-in attempts. Try again in 15 minutes.", 429);
-    const fail = () => {
-      const current = loginFailures.get(rateKey);
-      if (!current || current.resetAt <= Date.now()) loginFailures.set(rateKey, { count: 1, resetAt: Date.now() + 15 * 60_000 });
-      else current.count += 1;
-      if (loginFailures.size > 10_000) for (const [key, entry] of loginFailures) { if (entry.resetAt <= Date.now()) loginFailures.delete(key); if (loginFailures.size <= 10_000) break; }
+    const keyHash = hash(rateKey);
+    const now = new Date();
+    const existing = await this.db.loginThrottle.findUnique({ where: { keyHash } });
+    if (existing && existing.resetAt > now && existing.attempts >= 8) throw new HttpException("Too many sign-in attempts. Try again in 15 minutes.", 429);
+    const fail = async () => {
+      const windowEnd = new Date(Date.now() + 15 * 60_000);
+      const rows = await this.db.$queryRaw<{ attempts: number }[]>`
+        INSERT INTO "LoginThrottle" ("id", "keyHash", "attempts", "resetAt", "updatedAt")
+        VALUES (${randomBytes(16).toString("hex")}, ${keyHash}, 1, ${windowEnd}, CURRENT_TIMESTAMP)
+        ON CONFLICT ("keyHash") DO UPDATE SET
+          "attempts" = CASE WHEN "LoginThrottle"."resetAt" <= CURRENT_TIMESTAMP THEN 1 ELSE "LoginThrottle"."attempts" + 1 END,
+          "resetAt" = CASE WHEN "LoginThrottle"."resetAt" <= CURRENT_TIMESTAMP THEN ${windowEnd} ELSE "LoginThrottle"."resetAt" END,
+          "updatedAt" = CURRENT_TIMESTAMP
+        RETURNING "attempts"
+      `;
+      if (randomBytes(1)[0] === 0) await this.db.loginThrottle.deleteMany({ where: { resetAt: { lt: new Date(Date.now() - 86400_000) } } });
+      return rows[0]?.attempts ?? 1;
     };
     const user = await this.db.user.findUnique({ where: { email } });
-    if (!user) { fail(); throw new UnauthorizedException("Email or password is incorrect."); }
+    if (!user) { await fail(); throw new UnauthorizedException("Email or password is incorrect."); }
     if (!user.verifiedAt) throw new UnauthorizedException("Verify your email address before signing in.");
     const [salt, expectedHex] = user.passwordHash.split(":");
     const actual = await scrypt(dto.password, salt, 64);
     const expected = Buffer.from(expectedHex, "hex");
-    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) { fail(); throw new UnauthorizedException("Email or password is incorrect."); }
-    loginFailures.delete(rateKey);
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) { await fail(); throw new UnauthorizedException("Email or password is incorrect."); }
+    await this.db.loginThrottle.deleteMany({ where: { keyHash } });
     const token = randomBytes(32).toString("hex");
     await this.db.session.create({ data: { userId: user.id, tokenHash: hash(token), expiresAt: new Date(Date.now() + 7 * 86400_000) } });
     this.cookie(res, token, 7 * 86400_000);
@@ -170,7 +191,38 @@ export class AuthController {
   @Get("me")
   @UseGuards(AuthGuard)
   async me(@Req() req: SignedRequest) {
-    return { user: req.authUser, workspaces: await listUserWorkspaces(this.db, req.authUser!.id) };
+    const admins = (process.env.PLATFORM_ADMIN_EMAILS ?? "").split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: req.authUser!.id }, select: { id: true, name: true, email: true, phone: true, profileImage: true } });
+    return { user, workspaces: await listUserWorkspaces(this.db, req.authUser!.id), platformAdmin: admins.includes(req.authUser!.email.toLowerCase()) };
+  }
+
+  @Patch("profile")
+  @UseGuards(AuthGuard)
+  async updateProfile(@Body() dto: ProfileDto, @Req() req: SignedRequest) {
+    this.validateProfileImage(dto.profileImage);
+    return this.db.user.update({ where: { id: req.authUser!.id }, data: { name: dto.name.trim(), phone: dto.phone?.trim() || null, profileImage: dto.profileImage ?? null }, select: { id: true, name: true, email: true, phone: true, profileImage: true } });
+  }
+
+  @Patch("password")
+  @UseGuards(AuthGuard)
+  async updatePassword(@Body() dto: ChangePasswordDto, @Req() req: SignedRequest) {
+    const user = await this.db.user.findUniqueOrThrow({ where: { id: req.authUser!.id } });
+    const [salt, expectedHex] = user.passwordHash.split(":");
+    const actual = await scrypt(dto.currentPassword, salt, 64);
+    const expected = Buffer.from(expectedHex, "hex");
+    if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) throw new UnauthorizedException("Current password is incorrect.");
+    const nextSalt = randomBytes(16).toString("hex");
+    const nextKey = await scrypt(dto.newPassword, nextSalt, 64);
+    const currentToken = req.cookies?.[COOKIE] as string | undefined;
+    await this.db.$transaction([
+      this.db.user.update({ where: { id: user.id }, data: { passwordHash: `${nextSalt}:${nextKey.toString("hex")}` } }),
+      this.db.session.updateMany({ where: { userId: user.id, revokedAt: null, ...(currentToken ? { tokenHash: { not: hash(currentToken) } } : {}) }, data: { revokedAt: new Date() } }),
+    ]);
+    return { ok: true };
+  }
+
+  private validateProfileImage(value?: string) {
+    if (value && (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(value) || value.length > 1_500_000)) throw new BadRequestException("Use a PNG, JPEG or WebP profile image under 1 MB.");
   }
 }
 

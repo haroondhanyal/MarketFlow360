@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Post, Put, Query, Req, Res, UseGuards } from "@nestjs/common";
-import { IsArray, IsBase64, IsIn, IsInt, IsString, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBase64, IsIn, IsInt, IsString, Matches, MaxLength, Min, MinLength, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 import { LeadStatus } from "@prisma/client";
 import type { Response } from "express";
@@ -8,11 +8,11 @@ import { scoped } from "../crm-common";
 import { PrismaService } from "../prisma.service";
 
 class PipelineStageDto {
-  @IsIn(Object.values(LeadStatus)) key!: LeadStatus;
+  @IsString() @Matches(/^[A-Z][A-Z0-9_]{1,39}$/) key!: string;
   @IsString() @MinLength(2) @MaxLength(40) label!: string;
   @IsInt() @Min(0) position!: number;
 }
-class UpdatePipelineDto { @IsArray() @ValidateNested({ each: true }) @Type(() => PipelineStageDto) stages!: PipelineStageDto[]; }
+class UpdatePipelineDto { @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20) @ValidateNested({ each: true }) @Type(() => PipelineStageDto) stages!: PipelineStageDto[]; }
 class AttachmentDto {
   @IsIn(["LEAD", "CUSTOMER", "TASK"]) recordType!: "LEAD" | "CUSTOMER" | "TASK";
   @IsString() recordId!: string;
@@ -32,10 +32,20 @@ export class PipelineController {
   }
   @Put("stages") async save(@Body() dto: UpdatePipelineDto, @Req() req: SignedRequest) {
     const keys = dto.stages.map(stage => stage.key);
-    if (keys.length !== defaultStages.length || new Set(keys).size !== defaultStages.length || defaultStages.some(stage => !keys.includes(stage.key))) throw new BadRequestException("Keep every standard stage once; you can rename and reorder them.");
+    if (new Set(keys).size !== keys.length) throw new BadRequestException("Stage keys must be unique.");
+    if (!keys.includes("NEW")) throw new BadRequestException("Keep the NEW stage because new leads start there.");
+    if (dto.stages.some(stage => stage.label.trim().length < 2)) throw new BadRequestException("Stage labels need at least two non-space characters.");
     const positions = dto.stages.map(stage => stage.position);
-    if (new Set(positions).size !== defaultStages.length || positions.some(position => position >= defaultStages.length)) throw new BadRequestException("Use each pipeline position from zero through five once.");
-    await this.db.$transaction(dto.stages.map(stage => this.db.pipelineStage.upsert({ where: { workspaceId_key: { workspaceId: req.workspaceId!, key: stage.key } }, update: { label: stage.label.trim(), position: stage.position }, create: { ...stage, label: stage.label.trim(), ...scoped(req) } })));
+    if (new Set(positions).size !== dto.stages.length || positions.some(position => position >= dto.stages.length) || !positions.includes(0)) throw new BadRequestException("Use each pipeline position from zero through the number of stages minus one once.");
+    const previous = await this.db.pipelineStage.findMany({ where: scoped(req), select: { key: true } });
+    const oldKeys = previous.length ? previous.map(stage => stage.key) : defaultStages.map(stage => stage.key);
+    const removedKeys = oldKeys.filter(key => !keys.includes(key));
+    const fallback = keys[0];
+    await this.db.$transaction(async tx => {
+      for (const key of removedKeys) await tx.lead.updateMany({ where: { ...scoped(req), status: key }, data: { status: fallback } });
+      for (const stage of dto.stages) await tx.pipelineStage.upsert({ where: { workspaceId_key: { workspaceId: req.workspaceId!, key: stage.key } }, update: { label: stage.label.trim(), position: stage.position }, create: { ...stage, label: stage.label.trim(), ...scoped(req) } });
+      await tx.pipelineStage.deleteMany({ where: { ...scoped(req), key: { notIn: keys } } });
+    });
     return this.db.pipelineStage.findMany({ where: scoped(req), orderBy: { position: "asc" } });
   }
 }

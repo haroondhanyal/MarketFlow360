@@ -1,0 +1,1 @@
+ALTER TABLE "LandingPage" ADD COLUMN "formFields" JSONB NOT NULL DEFAULT '[]';

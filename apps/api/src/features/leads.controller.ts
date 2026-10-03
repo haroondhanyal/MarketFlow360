@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma.service";
 import { scoped } from "../crm-common";
 import { LeadDto, UpdateLeadDto, ConvertLeadDto, BulkLeadImportDto, BulkLeadStatusDto } from "../crm-dto";
 import { runNewLeadAutomations } from "./lead-automation";
+import { LeadStatus } from "@prisma/client";
 
 @Controller("leads") @UseGuards(AuthGuard, WorkspaceGuard)
 export class LeadsController {
@@ -18,6 +19,7 @@ export class LeadsController {
   }
   @Post("import") async importCsvRows(@Body() dto: BulkLeadImportDto, @Req() req: SignedRequest) {
     if (dto.leads.length > 500) throw new BadRequestException("Import up to 500 leads per batch.");
+    await this.requireStageKeys(dto.leads.flatMap(lead => lead.status ? [lead.status] : []), req);
     const created: unknown[] = []; let skipped = 0;
     for (const item of dto.leads) {
       const email = item.email?.trim().toLowerCase();
@@ -33,6 +35,7 @@ export class LeadsController {
   }
   @Patch("bulk/status") async bulkStatus(@Body() dto: BulkLeadStatusDto, @Req() req: SignedRequest) {
     if (dto.ids.length > 500) throw new BadRequestException("Update up to 500 leads per batch.");
+    await this.requireStageKeys([dto.status], req);
     const leads = await this.db.lead.findMany({ where: { ...scoped(req), id: { in: dto.ids }, archivedAt: null }, select: { id: true, status: true } });
     await this.db.$transaction(leads.flatMap(lead => [
       this.db.lead.update({ where: { id: lead.id }, data: { status: dto.status } }),
@@ -41,6 +44,7 @@ export class LeadsController {
     return { updated: leads.length };
   }
   @Post() async create(@Body() dto: LeadDto, @Req() req: SignedRequest) {
+    if (dto.status) await this.requireStageKeys([dto.status], req);
     await this.checkAssignee(dto.assignedToId, req);
     const email = dto.email?.trim().toLowerCase();
     const phone = dto.phone?.trim().replace(/[^\d+]/g, "");
@@ -54,10 +58,7 @@ export class LeadsController {
   @Patch(":id") async update(@Param("id") id: string, @Body() dto: UpdateLeadDto, @Req() req: SignedRequest) {
     const old = await this.findLead(id, req);
     await this.checkAssignee(dto.assignedToId, req);
-    if (dto.status && dto.status !== old.status) {
-      const next: Record<string, string[]> = { NEW: ["CONTACTED", "LOST"], CONTACTED: ["NEW", "INTERESTED", "LOST"], INTERESTED: ["CONTACTED", "PROPOSAL_PENDING", "LOST"], PROPOSAL_PENDING: ["INTERESTED", "WON", "LOST"], WON: ["LOST"], LOST: ["NEW"] };
-      if (!next[old.status].includes(dto.status)) throw new BadRequestException(`Cannot move a lead from ${old.status} to ${dto.status}.`);
-    }
+    if (dto.status) await this.requireStageKeys([dto.status], req);
     const updated = await this.db.lead.update({ where: { id }, data: { ...dto, email: dto.email?.toLowerCase() } });
     if (dto.status && dto.status !== old.status) await this.db.leadActivity.create({ data: { ...scoped(req), leadId: id, userId: req.authUser!.id, type: "STAGE_CHANGED", message: `Stage changed from ${old.status} to ${dto.status}` } });
     else if (dto.notes !== undefined) await this.db.leadActivity.create({ data: { ...scoped(req), leadId: id, userId: req.authUser!.id, type: "NOTE_UPDATED", message: "Lead notes updated" } });
@@ -87,4 +88,10 @@ export class LeadsController {
   }
   private async findLead(id: string, req: SignedRequest) { const row = await this.db.lead.findFirst({ where: { id, ...scoped(req), archivedAt: null } }); if (!row) throw new NotFoundException("Lead not found."); return row; }
   private async checkAssignee(userId: string | undefined, req: SignedRequest) { if (userId && !await this.db.membership.findUnique({ where: { userId_workspaceId: { userId, workspaceId: req.workspaceId! } } })) throw new BadRequestException("Lead owner must be a member of this workspace."); }
+  private async requireStageKeys(keys: string[], req: SignedRequest) {
+    if (!keys.length) return;
+    const configured = await this.db.pipelineStage.findMany({ where: scoped(req), select: { key: true } });
+    const allowed = new Set(configured.length ? configured.map(row => row.key) : Object.values(LeadStatus));
+    if (keys.some(key => !allowed.has(key))) throw new BadRequestException("Choose a lead stage configured for this workspace.");
+  }
 }
