@@ -129,15 +129,17 @@ Run the database-generation, migration and seed commands above. `apps/api/.env` 
 
 ### Demo accounts
 
-The seed includes fictional local accounts:
+The seed creates five fictional local accounts, 20 company workspaces and two team memberships per workspace. All five accounts use the local-only password `MarketFlow2026!`.
 
-| Workspace | Email | Password |
-|---|---|---|
-| Nexora Academy | `owner@nexora.example` | `MarketFlow2026!` |
-| Urban Retail | `owner@urbanretail.example` | `MarketFlow2026!` |
-| Bright Digital Agency | `owner@brightagency.example` | `MarketFlow2026!` |
+| User | Email |
+|---|---|
+| Haroon Jamal | `owner@nexora.example` |
+| Amina Shah | `owner@urbanretail.example` |
+| Adil Agency | `owner@brightagency.example` |
+| Sana Qureshi | `sana@northstar.example` |
+| Bilal Ahmed | `bilal@pixelcraft.example` |
 
-The agency demo has explicit access to Urban Retail. These credentials are only for the local demo. The seed command refuses to run when `NODE_ENV=production`.
+Profile portraits are stored under [`apps/web/public/demo-avatars/`](apps/web/public/demo-avatars/) and assigned to each seeded user. See [`docs/DEMO-DATA-README.md`](docs/DEMO-DATA-README.md) for the company list, workspace membership, setup details and demo-data notes. These credentials are only for the local demo. Seeding refuses to run in production or against a non-local database host.
 
 ## Configuration
 
