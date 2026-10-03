@@ -1,0 +1,2 @@
+import type { Page } from "@playwright/test";
+export const registerLocators = (page: Page) => ({ heading: page.getByRole("heading", { name: "Create your workspace" }), name: page.getByLabel("Your name"), email: page.getByLabel("Work email"), password: page.locator('input[autocomplete="new-password"]'), workspace: page.getByLabel("Workspace name"), photo: page.locator('input[type="file"]'), countryCode: page.getByLabel("Country calling code"), submit: page.getByRole("button", { name: "Create workspace" }) });

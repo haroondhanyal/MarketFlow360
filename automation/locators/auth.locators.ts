@@ -1,0 +1,2 @@
+import type { Page } from "@playwright/test";
+export const authLocators = (page: Page) => ({ heading: page.getByRole("heading", { level: 1 }), email: page.getByLabel(/email/i).first(), password: page.locator('input[type="password"]').first(), submit: page.getByRole("button", { name: /sign in|create workspace|send reset/i }), passwordToggle: page.getByRole("button", { name: /show password|hide password/i }) });

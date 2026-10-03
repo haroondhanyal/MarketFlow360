@@ -1,0 +1,45 @@
+[
+  {
+    "name": "Performance / Load",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*(k6|p95|p99|latency|load).*"
+  },
+  {
+    "name": "Timeout / Performance",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*(timeout|timed out|exceeded.*threshold|slow response).*"
+  },
+  {
+    "name": "Environment / Infrastructure",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*(ECONNREFUSED|ENOTFOUND|ECONNRESET|browserType\\.launch|Target closed|Safety stop|database.*(connect|unavailable)|network).*"
+  },
+  {
+    "name": "Test Data Issues",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*(fixture|seed|faker|test data|unique constraint|foreign key|invalid.*data).*"
+  },
+  {
+    "name": "API / Integration Issues",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": ".*(API contract|HTTP|status code|response schema|request failed).*"
+  },
+  {
+    "name": "Automation / Test Defects",
+    "matchedStatuses": ["failed", "broken"],
+    "traceRegex": ".*(locator|selector|strict mode|test\\.step|Playwright).*"
+  },
+  {
+    "name": "Known Issues",
+    "matchedStatuses": ["failed", "broken"],
+    "messageRegex": ".*(known issue|expected failure|third.party).*"
+  },
+  {
+    "name": "Product Defects",
+    "matchedStatuses": ["failed", "broken"]
+  },
+  {
+    "name": "Skipped / Pending",
+    "matchedStatuses": ["skipped", "unknown"]
+  }
+]

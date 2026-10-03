@@ -1,0 +1,34 @@
+{
+  "name": "@marketflow/automation",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bddgen test --config=playwright.config.ts && node scripts/run-playwright.mjs",
+    "test:ui": "bddgen test --config=playwright.config.ts && node scripts/run-playwright.mjs --project=ui",
+    "test:api": "bddgen test --config=playwright.config.ts && node scripts/run-playwright.mjs --project=api",
+    "test:bdd": "bddgen test --config=playwright.config.ts && node scripts/run-playwright.mjs --project=bdd",
+    "test:db": "bddgen test --config=playwright.config.ts && node scripts/run-playwright.mjs --project=database",
+    "test:k6": "node scripts/run-k6.mjs",
+    "test:performance": "node scripts/run-k6.mjs",
+    "performance:report": "node performance/generate-report.mjs && node performance/generate-native-report.mjs",
+    "test:list": "bddgen test --config=playwright.config.ts && playwright test --config=playwright.config.ts --list",
+    "report": "node scripts/prepare-allure-report.mjs && allure generate allure-results --clean -o allure-report && node scripts/brand-report.mjs && allure open allure-report",
+    "report:generate": "node scripts/prepare-allure-report.mjs && allure generate allure-results --clean -o allure-report && node scripts/brand-report.mjs",
+    "db:prepare": "node scripts/prepare-database.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "10.6.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.4",
+    "@types/pg": "8.23.1",
+    "allure-commandline": "2.46.1",
+    "allure-playwright": "3.13.0",
+    "dotenv": "18.0.5",
+    "pg": "8.23.1",
+    "playwright-bdd": "9.2.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2"
+  }
+}

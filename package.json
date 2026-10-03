@@ -7,6 +7,15 @@
     "dev": "corepack pnpm --parallel --filter @marketflow/web --filter @marketflow/api dev",
     "build": "corepack pnpm -r build",
     "typecheck": "corepack pnpm -r typecheck",
-    "test": "corepack pnpm --filter @marketflow/api test:integration"
+    "test": "corepack pnpm --filter @marketflow/api test:integration",
+    "test:e2e": "corepack pnpm --filter @marketflow/automation test",
+    "test:e2e:ui": "corepack pnpm --filter @marketflow/automation test:ui",
+    "test:e2e:api": "corepack pnpm --filter @marketflow/automation test:api",
+    "test:e2e:bdd": "corepack pnpm --filter @marketflow/automation test:bdd",
+    "test:e2e:db": "corepack pnpm --filter @marketflow/automation test:db",
+    "test:e2e:k6": "corepack pnpm --filter @marketflow/automation test:k6",
+    "test:e2e:performance": "corepack pnpm --filter @marketflow/automation test:performance",
+    "test:e2e:performance:report": "corepack pnpm --filter @marketflow/automation performance:report",
+    "test:e2e:report": "corepack pnpm --filter @marketflow/automation report"
   }
 }

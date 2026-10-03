@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#product-screens">Screenshots</a> ·
   <a href="#get-started">Get started</a> ·
+  <a href="#automation">Automation</a> ·
   <a href="docs/PHASES.md">Delivery phases</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a>
 </p>
@@ -77,6 +78,7 @@ Screenshots live in [`docs/screenshots`](docs/screenshots). Refresh them after a
 | Repository | pnpm workspace with separate `apps/web` and `apps/api` packages |
 | Local services | Docker Compose PostgreSQL and Redis; Redis is provisioned but not currently used by the app |
 | CI | GitHub Actions for migrations, TypeScript checks, production builds and API integration tests |
+| Quality automation | Playwright UI/API/BDD/database suites, Grafana k6 API performance cases and branded Allure reports; see [Automation](automation/README.md) |
 
 ```text
 Browser → Next.js web app → NestJS /api/v1 → Prisma → PostgreSQL
@@ -221,3 +223,79 @@ Coordinate Prisma schema changes before editing `schema.prisma`; add a migration
 - Backups, monitoring, deployment automation and production hosting are outside the local MVP scope.
 
 See [the phased checklist](docs/PHASES.md) for implementation status and remaining work, and [the architecture notes](docs/ARCHITECTURE.md) for tenancy, security and runtime details.
+
+## Automation
+
+MarketFlow360 includes a separate automation package in [`automation/`](automation/README.md): four Playwright projects plus k6 performance coverage. The defined suite contains **750 cases** across five isolated workspaces. The [automation guide](automation/README.md) documents setup, commands, test data isolation, Allure evidence, k6 thresholds and report generation.
+
+| Test project | Cases | What it exercises |
+|---|---:|---|
+| UI | 260 | Per-screen smoke coverage, invalid form input, navigation, saved appearance and responsive regression checks |
+| API | 140 | Authentication and workspace guards, request validation, contracts and tenant-scoped resources |
+| BDD | 100 | Gherkin user journeys using 20 feature scenarios across five workspaces |
+| Database | 100 | Parameterized SQL integrity and tenant-boundary checks across five workspaces |
+| k6 Performance | 150 | 30 read-only API request profiles across five workspaces, with latency and response checks |
+| **Total** | **750** | Every case has an individual result; k6 cases include request/latency evidence |
+
+### Automation architecture
+
+The Playwright config starts the web and API on automation-only ports. Its four projects share hooks and seeded test accounts while keeping UI page objects, API clients, BDD scenarios and database checks in separate modules. k6 runs independently against the API using the same five workspace fixtures. The database preparer targets the isolated `marketflow_automation` database; Playwright global setup provisions the workspace fixtures.
+
+```mermaid
+flowchart LR
+  CFG[Playwright config] --> UI[UI · page objects + screen locators]
+  CFG --> API[API · contracts + auth checks]
+  CFG --> BDD[BDD · Gherkin features + steps]
+  CFG --> DB[Database · parameterized SQL checks]
+  K6[k6 · 30 read-only API profiles] --> W
+  UI --> W[Five isolated workspaces]
+  API --> W
+  BDD --> W
+  DB --> W
+  W --> APP[MarketFlow360 web + API]
+  W --> PG[(marketflow_automation PostgreSQL)]
+  UI --> AR[Allure results]
+  API --> AR
+  BDD --> AR
+  DB --> AR
+  K6 --> AR
+  AR --> R[Branded Allure report]
+```
+
+k6 cases keep per-workspace request counts, pass/fail checks, average and range latency, p95/p99 thresholds and raw JSON evidence. The branded Categories view renders these metrics inline and links to the raw attachment; the combined report also links to standalone Advanced and Native k6 reports. See the [automation architecture](docs/ARCHITECTURE.md#quality-automation-architecture) for result flow and data isolation.
+
+### Allure report screenshots
+
+The generated report keeps the MarketFlow360 header with Raja Haroon Jamal's QA role, suite links, result counts and the Advanced and Native k6 report links. The content below it is Allure's original report interface, including its native Overview, Suites, Behaviors, Categories and Graphs views.
+
+![MarketFlow360 Allure report overview](automation/docs/screenshots/allure-overview.png)
+
+![MarketFlow360 Allure categories and current case results](automation/docs/screenshots/allure-categories.png)
+
+The Suites view opens an individual result with test actions, before/after hooks, elapsed time and its available evidence. UI and BDD results include screenshots and browser recordings; API and database results show their request or SQL steps without empty browser captures. Expand a k6 case in Categories → Performance / Load to see its request and latency metrics inline.
+
+![MarketFlow360 Allure database test steps and evidence](automation/docs/screenshots/allure-test-detail.png)
+
+In **Categories**, select a group to list its cases and expand any case to see its status, error message/trace when it failed, executed steps and before/after hooks. UI/BDD browser cases include screenshots and WebM recordings. API and SQL cases show their actual request/query steps and explicitly skip empty `about:blank` media. k6 cases attach their request and latency JSON. Report totals merge retried attempts into the final test result while retaining the retry count and attempt step.
+
+### Run automation
+
+Set up the isolated database and Chromium once, then run all cases or one suite from the repository root:
+
+```sh
+cp automation/.env.example automation/.env
+corepack pnpm --filter @marketflow/automation db:prepare
+corepack pnpm --filter @marketflow/automation exec playwright install chromium
+
+corepack pnpm test:e2e       # 600 Playwright cases
+corepack pnpm dev            # keep the API running before k6
+corepack pnpm test:e2e:performance       # run 150 k6 cases + create native and Allure reports
+corepack pnpm test:e2e:performance:report # regenerate advanced + native k6 HTML reports
+corepack pnpm test:e2e:ui    # UI only
+corepack pnpm test:e2e:api   # API only
+corepack pnpm test:e2e:bdd   # Gherkin only
+corepack pnpm test:e2e:db    # PostgreSQL only
+corepack pnpm --filter @marketflow/automation report:generate
+```
+
+The report is written to ignored `automation/allure-report/`; Playwright results, screenshots, videos and traces are stored under ignored `automation/allure-results/` and `automation/test-results/`. Its header includes direct links to the detailed Advanced k6 report and the raw Native k6 report. The test steps are intentional Given/When/Then or query/action labels, so the report can show what each case performed rather than only whether it passed.
