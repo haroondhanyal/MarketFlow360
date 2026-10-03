@@ -272,6 +272,10 @@ The generated report keeps the MarketFlow360 header with Raja Haroon Jamal's QA 
 
 ![MarketFlow360 Allure categories and current case results](automation/docs/screenshots/allure-categories.png)
 
+![MarketFlow360 Advanced k6 performance report](automation/docs/screenshots/k6-advanced-report.png)
+
+The Advanced k6 report summarizes all 150 workspace-scoped cases, request and latency thresholds, run-level metrics and per-case p95 response times. Its searchable case table expands each result to show the execution details and JSON evidence.
+
 The Suites view opens an individual result with test actions, before/after hooks, elapsed time and its available evidence. UI and BDD results include screenshots and browser recordings; API and database results show their request or SQL steps without empty browser captures. Expand a k6 case in Categories → Performance / Load to see its request and latency metrics inline.
 
 ![MarketFlow360 Allure database test steps and evidence](automation/docs/screenshots/allure-test-detail.png)

@@ -120,7 +120,7 @@ corepack pnpm --filter @marketflow/automation report:generate
 
 Generated artifacts live in ignored `automation/allure-results/`, `automation/allure-report/` and `automation/test-results/` directories. Non-empty browser screenshots and videos are attached to UI/BDD cases; API/database cases keep their request and SQL evidence without blank browser media.
 
-The README screenshots of the Allure overview, test detail and categories are under [`docs/screenshots/`](docs/screenshots/). The test-detail image illustrates the step/attachment view; the k6 metric card is rendered from each case's JSON evidence when regenerating the branded report.
+The README screenshots of the Allure overview, test detail, categories and [Advanced k6 report](docs/screenshots/k6-advanced-report.png) are under [`docs/screenshots/`](docs/screenshots/). The k6 capture shows the 150-case run summary and per-case p95 chart; expand a row in the live report to inspect the case's execution steps and JSON evidence.
 
 ## Scenario design
 
